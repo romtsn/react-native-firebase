@@ -1,6 +1,6 @@
 {
   "name": "@react-native-firebase/app",
-  "version": "26.2.0",
+  "version": "26.3.2",
   "author": "Invertase <oss@invertase.io> (http://invertase.io)",
   "description": "A well tested, feature rich Firebase implementation for React Native, supporting iOS & Android. Individual module support for Admob, Analytics, Auth, Crash Reporting, Cloud Firestore, Database, Dynamic Links, Functions, Messaging (FCM), Remote Config, Storage and more.",
   "main": "./dist/module/index.js",
@@ -34,7 +34,8 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/invertase/react-native-firebase/tree/main/packages/app"
+    "url": "https://github.com/invertase/react-native-firebase",
+    "directory": "packages/app"
   },
   "license": "Apache-2.0",
   "keywords": [
@@ -112,7 +113,7 @@
     "react-native": "*"
   },
   "dependencies": {
-    "firebase": "12.17.0"
+    "firebase": "12.17.1"
   },
   "devDependencies": {
     "expo": "^55.0.18",
@@ -129,7 +130,7 @@
   },
   "sdkVersions": {
     "ios": {
-      "firebase": "12.17.0",
+      "firebase": "12.18.0",
       "firebaseSpmUrl": "https://github.com/firebase/firebase-ios-sdk.git",
       "iosTarget": "15.0",
       "macosTarget": "10.15",
@@ -139,8 +140,8 @@
       "minSdk": 23,
       "targetSdk": 34,
       "compileSdk": 34,
-      "firebase": "34.16.0",
-      "firebaseCrashlyticsGradle": "3.0.7",
+      "firebase": "34.18.0",
+      "firebaseCrashlyticsGradle": "3.0.8",
       "firebasePerfGradle": "2.0.2",
       "gmsGoogleServicesGradle": "4.5.0",
       "playServicesAuth": "21.5.0",
