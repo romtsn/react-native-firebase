@@ -240,6 +240,40 @@ already gets a matching build file via SPM's own attach path. Tracked from
 GitHub [#9158](https://github.com/invertase/react-native-firebase/issues/9158)
 / Linear CPRN-301.
 
+Maintainer check of the **Expo documented path** (SPM + dynamic frameworks +
+prebuild-generated AppDelegate `FIRApp` call) is **`yarn test-expo:ios:link`**
+only — [agent command policy](testing/agent-command-policy.md). That is a
+workspace **link** fixture (`test-expo/`), not Detox e2e (`yarn tests:ios:*`).
+Do not restate `expo prebuild` / `xcodebuild` here. Package index:
+[App package](packages/app/index.md).
+
+### User-project helpers must run after CocoaPods integrate
+
+`rnfirebase_add_spm_core_to_app_target` and `[RNFB] Embed Firebase SPM
+Frameworks` skip every native target that does not already have
+`[CP] Embed Pods Frameworks`. CocoaPods `post_install`
+(`run_podfile_post_install_hooks`) runs **before** `integrate_user_project`,
+which is when that CP phase is added and the app `.pbxproj` is saved.
+
+Expo `prebuild --clean` starts from a template with **no** CP embed phase
+yet. Running those helpers from `post_install` therefore skipped every
+native target: integrate then wrote the CP phase without a FirebaseCore
+`PBXBuildFile` or the RNFB embed phase, which is the `_OBJC_CLASS_$_FIRApp`
+link failure on GitHub
+[#9158](https://github.com/invertase/react-native-firebase/issues/9158).
+Incremental `pod install` on a project that already has
+the Frameworks `PBXBuildFile` still no-ops (no double-link).
+
+`packages/app/firebase_spm.rb` therefore runs **user-project** SPM helpers
+from `run_podfile_post_integrate_hooks` (end of `integrate_user_project`,
+after that save). Pods-project work (UUID counter, RN SPM integrity,
+static-linkage guard) stays on `post_install`. If `post_integrate` is
+missing, user-project helpers stay on `post_install`.
+Pods-project setting changes made from those `post_integrate` hooks (for
+example `SWIFT_ENABLE_EXPLICIT_MODULES`) must call `pods_project.save`:
+CocoaPods has already written `Pods.xcodeproj`, so in-memory-only edits
+are discarded.
+
 ### Idempotency guard must distinguish "declared" from "linked"
 
 `rnfirebase_add_spm_core_to_app_target` runs on every `pod install`, so its
@@ -276,10 +310,12 @@ app-bundle problem, and internal interop targets are not public products.
 ### Chosen integration
 
 `packages/app/firebase_spm.rb` tracks whether any RNFB dependency selected SPM.
-It wraps CocoaPods'
-`Pod::Installer#run_podfile_post_install_hooks` and adds
-`[RNFB] Embed Firebase SPM Frameworks` to application targets that already have
-`[CP] Embed Pods Frameworks`.
+User-project mutations (embed phase, FirebaseCore on the app target) run from
+CocoaPods `run_podfile_post_integrate_hooks` so `[CP] Embed Pods Frameworks`
+already exists; see
+[user-project helpers must run after CocoaPods integrate](#user-project-helpers-must-run-after-cocoapods-integrate).
+The embed helper adds `[RNFB] Embed Firebase SPM Frameworks` only to
+application targets that already have that CP phase.
 
 The phase:
 
@@ -381,6 +417,64 @@ The hook is guarded the same way as the embed phase: a failure to add the
 build phase warns via `Pod::UI` with the manual fallback command instead of
 failing `pod install` outright.
 
+## Expo precompiled module linkage repair
+
+Expo's prebuilt RNCore path activates a CocoaPods pre-install hook that changes React-Core-dependent pod targets to static libraries during `pod install`, even when the Podfile specifies `use_frameworks! :linkage => :dynamic` and SPM is active (`$RNFirebaseDisableSPM` is not set to true).
+
+The issue is a mutual-incompatibility between two separate mechanisms:
+
+- **Expo's scope**: Expo runs a pre-install hook that can downgrade
+  React-Core-dependent pod targets to static libraries before RNFB's product
+  generation restore point.
+- **SPM's scope**: each pod target has Firebase SPM products automatically
+  attached as dependencies via React Native's `spm_dependency`. When a pod
+  target is later marked static, those embedded SPM products (FirebaseCore,
+  etc.) are linked statically **inside** that pod's static archive. The
+  Podfile-level dynamic guard (`rnfirebase_fail_if_spm_static_linkage!`) runs
+  at post-install time and only sees the original declared linkage, not this
+  later per-pod mutation. It does not catch the per-pod-embedded-SPM case.
+- **Link-time consequence**: multiple static RNFB archives each carry an embedded
+  `FirebaseCore` copy. The app link reports duplicate symbols because the
+  product archives include conflicting FirebaseCore objects.
+
+### Chosen repair
+
+`rnfirebase_restore_dynamic_linkage_after_expo_prebuilt!` restores RNFB
+targets to dynamic frameworks when:
+
+1. SPM is active (`RNFirebaseSPM.active?`),
+2. Expo precompiled modules are active and report dynamic linkage intent
+   (`Expo::PrecompiledModules.enabled?` and
+   `Expo::PrecompiledModules.linkage(installer) == :dynamic`), and
+3. One or more RNFB targets are currently static.
+
+RNFB wraps CocoaPods' `generate_pods_project` phase and restores RNFB targets
+immediately before CocoaPods reads pod target build types to generate products
+and link inputs. This timing catches autolinking downgrades that happened in
+Expo's pre-install hook. The helper redefines the `build_type` method on each
+RNFB static target to return `dynamic_framework` instead, restoring those
+targets to dynamic linkage and eliminating the embedded SPM duplicate. Bare
+CocoaPods (no SPM), source-built Expo, non-Expo apps, and already-dynamic
+targets are unaffected.
+
+If CocoaPods no longer exposes `generate_pods_project`, RNFB cannot install
+the restore at the required boundary. Expo-precompiled installs warn once per
+installer class and continue without the restore; non-Expo and source-built
+Expo paths do not warn.
+
+### Regression check
+
+The documented Podfile configuration does not change: SPM on,
+`use_frameworks! :linkage => :dynamic`, prebuilt RNCore on. The canonical regression
+fixture is **`yarn test-expo:ios:link`** ([agent command policy](testing/agent-command-policy.md)).
+Link success confirms both RNFB framework products are in dynamic form and
+duplicate Firebase symbols are absent, while still validating the app target's
+own FirebaseCore dependency (the original purpose of that fixture). See
+[Maintainer check of the Expo documented path](#app-target-firebasecore-link-package-dependency-alone-is-not-enough).
+The [#9202](https://github.com/invertase/react-native-firebase/issues/9202)
+regression signature is duplicate `_FIRFirebaseVersion` symbols from
+`libRNFBApp.a` and `libRNFBMessaging.a`.
+
 ## Review invariants
 
 When native Firebase imports or SPM products change, review the diff for these
@@ -397,6 +491,10 @@ invariants:
 - no private/transitive Firebase target added as if it were a public product;
 - SPM mode still adds exactly one app framework-embedding phase and CocoaPods
   mode does not require it;
+- user-project SPM helpers (`rnfirebase_add_spm_core_to_app_target`, RNFB
+  embed phase) still run from `post_integrate` (after `[CP] Embed Pods
+  Frameworks` exists), not from `post_install`, except the older-CocoaPods
+  fallback that has no `post_integrate`;
 - `rnfirebase_add_spm_core_to_app_target`'s guard still checks for a matching
   `PBXBuildFile`/`product_ref` on the Frameworks build phase, not just a
   `package_product_dependencies` entry, so it self-heals a pre-fix
@@ -416,7 +514,11 @@ invariants:
   `RNFIREBASE_SPM_SIGNATURE_FIX_ARTIFACT_NAMES` is re-checked against a clean
   `-resolvePackageDependencies` run rather than assumed still complete;
 - Debug and Release builds cover SPM and CocoaPods, and the real-device archive
-  job verifies that every `@rpath` framework dependency is embedded.
+  job verifies that every `@rpath` framework dependency is embedded;
+- when Expo precompiled modules are active, `rnfirebase_restore_dynamic_linkage_after_expo_prebuilt!`
+  still restores RNFB targets from static back to dynamic if Expo's pre-install
+  hook downgraded them, and the `test-expo:ios:link` fixture still passes with no
+  duplicate Firebase symbols.
 
 The bullets above are the SPM-specific review checklist. General build, lint,
 and evidence requirements are owned by the

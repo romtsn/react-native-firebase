@@ -1,3 +1,11 @@
+---
+type: Reference
+title: Other CI workflows
+description: macOS and shared CI pipeline behavior, known failure modes, mitigations, and troubleshooting guidance.
+tags: [ci, macos, e2e, metro, jet, troubleshooting]
+timestamp: 2026-08-26T00:00:00Z
+---
+
 # Other CI workflows
 
 ## macOS e2e (`tests_e2e_other.yml`)
@@ -64,6 +72,7 @@ URL: http://localhost:8081/index.bundle?platform=macos&...&inlineSourceMap=false
 ```bash
 rg 'Could not connect to development server|HTTP load failed|Jet client connected|macOS Metro bundle prefetched' detox-step.log syslog.log
 log show --predicate 'process == "io.invertase.testing"' --last 10m --style compact | rg 'development server|HTTP load failed'
+# Slotted concurrent macOS: substitute RNFB_MACOS_PRODUCT_NAME (e.g. io.invertase.testing.s1)
 ```
 
 ### CI failure: `tryDeserialize is not a function` (mocha-remote-server patch)

@@ -52,9 +52,9 @@ Do not hand off closable gaps. Package workflows may define snapshot tooling (e.
 
 <a id="coverage-evidence-package"></a>
 
-## Coverage evidence package (blocking)
+## Coverage evidence package
 
-Required before **`review` gate** closes when the frozen diff touches `packages/*/lib/**`, native bridge sources (`packages/*/{android,ios}/**`), **or** iOS Ruby helpers (`packages/app/**/*.rb`). Jest green alone is insufficient.
+**Blocking.** Required before **`review` gate** closes when the frozen diff touches `packages/*/lib/**`, native bridge sources (`packages/*/{android,ios}/**`), **or** iOS Ruby helpers (`packages/app/**/*.rb`). Jest green alone is insufficient.
 
 Produce after fresh e2e on every required platform (when native/lib touched), then post-process native artifacts ([§ stale coverage](#stale-coverage-data)); for Ruby-only diffs, fresh `yarn tests:ios:ruby` is enough:
 
@@ -94,12 +94,12 @@ Minitest suites under `packages/app/__tests__/*_test.rb` cover production Ruby h
 
 | Item | Value |
 |------|-------|
-| **Command** | `yarn tests:ios:ruby` (after `bundle install` on the root Gemfile; CI uses `BUNDLE_FROZEN=true`) |
+| **Command** | `yarn tests:ios:ruby` (after `yarn ruby:install` or root `yarn`; CI uses `BUNDLE_FROZEN=true bundle install`) |
 | **Runner** | `packages/app/__tests__/run_with_coverage.rb` — SimpleCov starts before any production `.rb` / suite load; glob-discovers all `*_test.rb`; each suite runs in an **isolated subprocess** (mock unit vs real cocoapods/xcodeproj cannot share a process); Coverage counters are peek-merged across production `load` resets |
 | **LCOV** | `coverage/ios-ruby/lcov.info` (repo-relative `SF:…/packages/app/…`) |
 | **HTML** | `coverage/ios-ruby/index.html` (optional local browse) |
 | **Codecov flag** | `ios-ruby` — dedicated upload from `tests_e2e_ios.yml` debug+spm cell (same regime as `jest`: flag upload, **no** `flag_management` hard gate; local OKF review gate owns the touched-line bar) |
-| **CI** | `tests_e2e_ios.yml` (debug + spm): `BUNDLE_FROZEN=true bundle install` (root Gemfile, pinned cocoapods/xcodeproj) → `yarn tests:ios:ruby` → Codecov `flags: ios-ruby`. Not run on Jest or `tests_e2e_other.yml` — iOS job guarantees clang/ar/file for embed suites |
+| **CI** | `tests_e2e_ios.yml` (debug + spm): `BUNDLE_FROZEN=true bundle install` → yarn → `yarn tests:ios:ruby` → Codecov `flags: ios-ruby`. Not run on Jest or `tests_e2e_other.yml` — iOS job guarantees clang/ar/file for embed suites |
 | **Gems** | Committed root `Gemfile`/`Gemfile.lock` (+ `CHECKSUMS`); Dependabot `bundler` at `/` (cooldown in dependabot.yml — not Gemfile `cooldown:`, which needs Bundler 4+) |
 
 **Review gate:** when the frozen diff touches `packages/app/**/*.rb` or `packages/app/__tests__/*_test.rb`, `review_gate` **cannot close** without `yarn tests:ios:ruby` exit 0 and coverage evidence that touched production Ruby lines have test support ([validation checklist § iOS Ruby](validation-checklist.md#ios-ruby-unit-tests)).
@@ -192,9 +192,9 @@ Jet self-wraps under NYC with `--coverage`.
 
 **Tooling:**
 
-- Metro bundles `packages/*/dist/module/**` with inline source maps (`tests/.babelrc`: `useInlineSourceMaps: true`).
-- NYC (`tests/nyc.config.js`) remaps to `packages/*/lib/**` → **`coverage/lcov.info`** (`cwd: '..'`).
-- Jet re-invokes under `tests/node_modules/.bin/nyc` (checks `NYC_CONFIG`). Detox/macOS need no extra `nyc` prefix; Jet must run from `tests/`.
+- Metro bundles `packages/*/dist/module/**` with inline source maps (`tests/.babelrc` and `tests-macos/.babelrc`: `useInlineSourceMaps: true`).
+- NYC (`tests/nyc.config.js` and `tests-macos/nyc.config.js`) remaps to `packages/*/lib/**` → **`coverage/lcov.info`** (`cwd: '..'`).
+- Jet re-invokes under the test-app `nyc` (checks `NYC_CONFIG`) — `tests/` for iOS/Android, `tests-macos/` for macOS. Detox/macOS need no extra `nyc` prefix; start Jet only via [running e2e](running-e2e.md) packager commands.
 - **Transfer:** patched test-runner/mocha-remote WS only (`coverage-ready` → `pull-coverage` → `coverage-data` → `coverage-ack`); HTTP POST `/coverage` deleted (`attachHttpServer` removed). Host launch/orchestrate control uses a **separate** HTTP server on **8091** (not the 8090 WS stack) — see [test-runner orchestration (log triage)](running-e2e.md#test-runner-host-orchestration-log-triage-only). Patches: `.yarn/patches/` (`jet`, `mocha-remote-client`, `mocha-remote-server`). See [iOS issues 6–6b](../ci-workflows/ios.md#6-jet-websocket-disconnect-1006--1001), [issue 8](../ci-workflows/ios.md#8-coverage-teardown-handshake-failure-tests-pass-nyc-00), [jet patch workflow](../ci-workflows/detox-patches.md#updating-the-jet-patch-headless).
 
 **NYC settings:**

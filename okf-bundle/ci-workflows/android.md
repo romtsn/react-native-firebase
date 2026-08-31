@@ -1,3 +1,11 @@
+---
+type: Reference
+title: Android CI workflows
+description: Android CI job structure, coverage handling, Detox failure modes, mitigations, and troubleshooting guidance.
+tags: [ci, android, detox, e2e, coverage, troubleshooting]
+timestamp: 2026-08-26T00:00:00Z
+---
+
 # Android CI workflows
 
 ## E2E job shape (CI — mirrors workflow YAML; local: [running e2e](../testing/running-e2e.md))
@@ -39,6 +47,7 @@ On Jet/app WS 1006, Detox may tear down instrumentation during Jet's 15s reconne
 - `ADB.reverseRemove` — ignore `listener 'tcp:…' not found` during teardown (below)
 - Android idling resources — force idle (network/timers/Fabric)
 - `ExclusiveLockfile.js` — 2× lock stale for `ECOMPROMISED` flake ([detox-patches.md](detox-patches.md))
+- Login / CurrentStatus timeouts — `actions.js` ([detox-patches.md](detox-patches.md)); RNFB launch knobs: [`tests/e2e/detoxLatencyPolicy.js`](../../tests/e2e/detoxLatencyPolicy.js)
 
 Inventory: [detox-patches.md](detox-patches.md). `firebase.test.js` retries `RETRYABLE_DISCONNECT`; retry can pass despite attempt-1 adb noise.
 
@@ -63,7 +72,7 @@ Under load, Jet may run only a small prefix before mocha-remote desync, often af
 | Inbound parse buffer + `tryDeserialize` in `serialization.js` / `parse_skip` logging | mocha-remote-server patch |
 | Outbound queue flushed on reconnect | mocha-remote-client patch |
 | `JET_PROTOCOL_ERROR_RE` → retryable Jet session (attempt 2) | `tests/e2e/firebase.test.js` |
-| Cold-boot ready wait + post-boot settle before Jet attempt 1 | `firebase.test.js` (`waitForAndroidEmulatorReady`, `RNFB_ANDROID_BOOT_SETTLE_MS`) |
+| Cold-boot ready wait; post-boot settle + loadavg gate before Jet attempt 1 | `firebase.test.js` `waitForAndroidEmulatorReady` (ready wait **local and CI**); post-boot settle + loadavg gate **CI only** — [`androidReadyPolicy.js`](../../tests/e2e/androidReadyPolicy.js) `shouldSkipAndroidSettleAndLoad(!isCI)` ([running e2e](../testing/running-e2e.md) — local settle/load skipped when `CI` unset) |
 | Load gate before starting Jet (threshold 5, 3 consecutive polls) | `firebase.test.js` |
 
 **Patch workflow:** after editing `tests/node_modules/jet` or `mocha-remote-*`, run `yarn patch-commit` **and** root `yarn install`; CI uses lockfile patch hashes.
@@ -74,7 +83,6 @@ Under load, Jet may run only a small prefix before mocha-remote desync, often af
 |---------|----------------|
 | `[native-coverage] Android native coverage file not found after N attempts` | App-process flush did not run or failed; check Jet log for `[native-coverage] flushing android coverage` |
 | Empty Jacoco XML (~235 bytes) | No `.ec` / `.exec` in merge — check post-e2e logs and that `yarn tests:android:unit` ran ([coverage design](../testing/coverage-design.md)) |
-
 | `adb reverse --remove` in Detox logs | Expected on 1006; should be warn-only after Detox patch |
 | Detox red, tests green in log | Pre-patch: teardown adb error; re-run or check patch applied |
 | Emulator offline / hung / duplicate instance | Warm quickboot snapshot restore; `tests/.detoxrc.js` sets `bootArgs: '-no-snapshot-load -no-snapshot-save'` for cold boot when Detox launches TestingAVD |

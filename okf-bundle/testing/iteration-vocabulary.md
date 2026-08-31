@@ -18,7 +18,7 @@ Glossary of **string identifiers** and **work-queue field names** used across OK
 | **All agent shell commands** (install, prepare, validation, e2e) | [agent command policy](agent-command-policy.md) |
 | E2e-only detail, pre-flight, harness gate, tier scope | [running e2e](running-e2e.md) — `yarn tests:*` subset of agent command policy |
 | Validation command sequence | [validation checklist](validation-checklist.md) |
-| Work-queue gate snapshots | Package work queues (ephemeral) |
+| Work-queue gate snapshots | Linear project work-queue documents (ephemeral). Grandfathered `okf-bundle/**/*work-queue.md` until migrated. See [documentation policy](../documentation-policy.md#work-queue-documents). |
 
 ## Work type identifiers
 
@@ -27,8 +27,8 @@ Glossary of **string identifiers** and **work-queue field names** used across OK
 | `gap-analysis` | Read-only feasibility / semantics check |
 | `baseline-capture` | Record before snapshots or baselines |
 | `implementation` | Author product code and tests |
-| `independent-review` | Verify a frozen diff |
-| `documentation` | User docs and durable OKF updates |
+| `documentation` | Promote user docs and durable OKF — does not run the scan |
+| `independent-review` | Verify a frozen diff (OKF scan when those files are in the tree) |
 | `commit` | Stage and create one commit |
 | `pre-merge-validation` | Branch-wide merge gate |
 
@@ -54,9 +54,7 @@ Work queues use these **field names** (values: `open` | `closed`):
 | `review_gate` | `independent-review` work type complete |
 | `commit_gate` | Durable commit exists for the item **after** prior gates closed with [validation evidence](change-authoring-workflow.md#validation-evidence-blocking) |
 
-What closes each gate, trust rules, and loop transitions: [change authoring § gates](change-authoring-workflow.md#gates).
-
-`commit_gate` closes when a durable commit exists whose subject matches the row's `commit_subject`, **after** `implementation_gate` and `review_gate` closed with [validation evidence](change-authoring-workflow.md#validation-evidence-blocking).
+What closes each gate, trust rules, and loop transitions: [change authoring § gates](change-authoring-workflow.md#gates). `commit_subject` match and staging: [change authoring § commit](change-authoring-workflow.md#commit).
 
 Items may also be marked **`blocked`** when a dependency gate is open elsewhere.
 
@@ -72,10 +70,10 @@ Ephemeral work queues may record:
 | `implementation_gate` | `open` \| `closed` |
 | `review_gate` | `open` \| `closed` |
 | `commit_gate` | `open` \| `closed` |
-| `commit_subject` | Planned or landed **first line** of the item's focused commit (Conventional Commits subject). Set **before** `git commit`; must match the commit that closes `commit_gate`. Do not record SHAs. |
+| `commit_subject` | Planned or landed **first line** of the item's focused commit (Conventional Commits subject). Staging, match, and no-SHA rules: [change authoring § commit](change-authoring-workflow.md#commit). |
 | `blocked` | Item or dependency blocked until named gate closes |
 
-Queues record **state**, not who executes the work.
+Queues record **state** (gate fields and `next_work_type`). Public OKF owns the terms, gates, and commands.
 
 ## Related docs
 
