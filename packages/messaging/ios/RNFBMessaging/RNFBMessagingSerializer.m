@@ -17,23 +17,31 @@
 
 #import "RNFBMessagingSerializer.h"
 #import <React/RCTConvert.h>
+#include <limits.h>
 
 @implementation RNFBMessagingSerializer
 
-+ (NSData *)APNSTokenDataFromNSString:(NSString *)token {
++ (nullable NSData *)APNSTokenDataFromNSString:(NSString *)token {
   NSString *string = [token lowercaseString];
-  NSMutableData *data = [NSMutableData new];
-  unsigned char whole_byte;
-  char byte_chars[3] = {'\0', '\0', '\0'};
-  NSUInteger i = 0;
   NSUInteger length = string.length;
-  while (i < length - 1) {
-    char c = [string characterAtIndex:i++];
-    if (c < '0' || (c > '9' && c < 'a') || c > 'f') continue;
-    byte_chars[0] = c;
-    byte_chars[1] = [string characterAtIndex:i++];
-    whole_byte = strtol(byte_chars, NULL, 16);
-    [data appendBytes:&whole_byte length:1];
+  if (length == 0 || length % 2 != 0) {
+    return nil;
+  }
+
+  NSMutableData *data = [NSMutableData dataWithLength:length / 2];
+  unsigned char *bytes = data.mutableBytes;
+  for (NSUInteger i = 0; i < length; i += 2) {
+    unichar highCharacter = [string characterAtIndex:i];
+    unichar lowCharacter = [string characterAtIndex:i + 1];
+    if ((highCharacter < '0' || (highCharacter > '9' && highCharacter < 'a') ||
+         highCharacter > 'f') ||
+        (lowCharacter < '0' || (lowCharacter > '9' && lowCharacter < 'a') || lowCharacter > 'f')) {
+      return nil;
+    }
+
+    unsigned char high = highCharacter <= '9' ? highCharacter - '0' : highCharacter - 'a' + 10;
+    unsigned char low = lowCharacter <= '9' ? lowCharacter - '0' : lowCharacter - 'a' + 10;
+    bytes[i / 2] = (high << 4) | low;
   }
   return data;
 }
@@ -88,7 +96,26 @@
 
     // message.sentTime
     if ([key isEqualToString:@"google.c.a.ts"]) {
-      message[@"sentTime"] = userInfo[key];
+      id timestamp = userInfo[key];
+      NSString *timestampString = nil;
+      if ([timestamp isKindOfClass:[NSString class]]) {
+        timestampString = timestamp;
+      } else if ([timestamp isKindOfClass:[NSNumber class]]) {
+        timestampString = [timestamp stringValue];
+      }
+
+      BOOL isDecimalInteger = timestampString.length > 0;
+      for (NSUInteger i = 0; i < timestampString.length && isDecimalInteger; i++) {
+        unichar character = [timestampString characterAtIndex:i];
+        isDecimalInteger = character >= '0' && character <= '9';
+      }
+
+      if (isDecimalInteger) {
+        long long sentTimeSeconds = timestampString.longLongValue;
+        if (sentTimeSeconds > 0 && sentTimeSeconds <= LLONG_MAX / 1000) {
+          message[@"sentTime"] = @(sentTimeSeconds * 1000);
+        }
+      }
       continue;
     }
 
@@ -130,8 +157,9 @@
 
     // iOS only
     // message.notification.ios.badge
-    if (apsDict[@"badge"] != nil) {
-      notificationIOS[@"badge"] = apsDict[@"badge"];
+    id badge = apsDict[@"badge"];
+    if (badge != nil) {
+      notificationIOS[@"badge"] = [badge description];
     }
 
     // message.notification.*
@@ -197,7 +225,7 @@
     if (apsDict[@"sound"] != nil) {
       if ([apsDict[@"sound"] isKindOfClass:[NSString class]]) {
         // message.notification.ios.sound
-        notification[@"sound"] = apsDict[@"sound"];
+        notificationIOS[@"sound"] = apsDict[@"sound"];
       } else if ([apsDict[@"sound"] isKindOfClass:[NSDictionary class]]) {
         NSDictionary *apsSoundDict = apsDict[@"sound"];
         NSMutableDictionary *notificationIOSSound = [[NSMutableDictionary alloc] init];

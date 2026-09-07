@@ -3,6 +3,25 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [26.4.0](https://github.com/invertase/react-native-firebase/compare/v26.3.3...v26.4.0) (2026-09-05)
+
+### Bug Fixes
+
+- **auth, ios:** look up customAuthDomains with JS app name ([9873f61](https://github.com/invertase/react-native-firebase/commit/9873f618a972c3324ec05b9e30f5aaefa7ab163b))
+- **auth:** [LOW] handle malformed action links ([0961ccc](https://github.com/invertase/react-native-firebase/commit/0961ccc1108195c40fbb00ba38280f70f1419fbe))
+- **auth:** use RNFBHandleMap for auth state and id-token listeners ([a708e84](https://github.com/invertase/react-native-firebase/commit/a708e847119995b8cfbde07f11ea84d48aede29b))
+- **auth:** use RNFBHandleMap for credential and MFA caches ([bd891f5](https://github.com/invertase/react-native-firebase/commit/bd891f5f8955c8c08d9d9447f2442beda91c9174))
+
+## [26.3.3](https://github.com/invertase/react-native-firebase/compare/v26.3.2...v26.3.3) (2026-09-01)
+
+### Bug Fixes
+
+- **ios:** align TurboModule constants return type with generated spec ([c79e1d2](https://github.com/invertase/react-native-firebase/commit/c79e1d2bc43b00a6ef61d38a294feceaed447740)), closes [#9212](https://github.com/invertase/react-native-firebase/issues/9212)
+
+### Reverts
+
+- Revert "chore(release): release packages" ([0a85268](https://github.com/invertase/react-native-firebase/commit/0a85268ae21c706cf1392eaa5b088e85c3273cb7))
+
 ## [26.3.2](https://github.com/invertase/react-native-firebase/compare/v26.3.1...v26.3.2) (2026-08-21)
 
 **Note:** Version bump only for package @react-native-firebase/auth

@@ -45,7 +45,10 @@ function generateGAClientId(): string {
 interface AnalyticsEvent {
   name: string;
   params: AnalyticsEventParameters;
+  sessionId: number;
 }
+
+const DEFAULT_SESSION_TIMEOUT_MS = 1_800_000;
 
 class AnalyticsApi implements IAnalyticsApi {
   public readonly appName: string;
@@ -58,12 +61,14 @@ class AnalyticsApi implements IAnalyticsApi {
   private userProperties: AnalyticsUserProperties;
   private consent: AnalyticsConsent;
   private analyticsCollectionEnabled: boolean;
-  private started: boolean;
+  private processingQueue: boolean;
   private installationId: string | null;
   private debug: boolean;
   private currentScreen: string | null;
   private sessionId?: number;
+  private lastEventTime?: number;
   private cid?: string | null;
+  private cidPromise?: Promise<string>;
 
   constructor(appName: string, measurementId: string) {
     this.appName = appName;
@@ -76,7 +81,7 @@ class AnalyticsApi implements IAnalyticsApi {
     this.userProperties = {};
     this.consent = {};
     this.analyticsCollectionEnabled = true;
-    this.started = false;
+    this.processingQueue = false;
     this.installationId = null;
     this.debug = false;
     this.currentScreen = null;
@@ -143,18 +148,31 @@ class AnalyticsApi implements IAnalyticsApi {
 
   logEvent(eventName: string, eventParams: AnalyticsEventParameters = {}): void {
     if (!this.analyticsCollectionEnabled) return;
+    const eventTime = Date.now();
+    if (
+      this.sessionId === undefined ||
+      this.lastEventTime === undefined ||
+      eventTime - this.lastEventTime >= DEFAULT_SESSION_TIMEOUT_MS
+    ) {
+      this.sessionId = Math.floor(eventTime / 1000);
+    }
+    this.lastEventTime = eventTime;
     this.eventQueue.push({
       name: eventName,
       params: { ...this.defaultEventParameters, ...eventParams },
+      sessionId: this.sessionId,
     });
     this._startQueueProcessing();
   }
 
   private async _getInstallationId(): Promise<void> {
-    // @ts-ignore
-    if (navigator !== null) {
-      // @ts-ignore
-      (navigator as any).onLine = true;
+    const navigatorObject = globalThis.navigator;
+    if (navigatorObject && !('onLine' in navigatorObject) && Object.isExtensible(navigatorObject)) {
+      Object.defineProperty(navigatorObject, 'onLine', {
+        configurable: true,
+        value: true,
+        writable: true,
+      });
     }
     makeIDBAvailable();
     const app = getApp(this.appName);
@@ -170,9 +188,7 @@ class AnalyticsApi implements IAnalyticsApi {
   }
 
   private _startQueueProcessing(): void {
-    if (this.started) return;
-    this.sessionId = Math.floor(Date.now() / 1000);
-    this.started = true;
+    if (this.queueTimer !== null || this.eventQueue.length === 0) return;
     this.queueTimer = setInterval(
       () => this._processQueue().catch(console.error),
       this.queueInterval,
@@ -180,23 +196,39 @@ class AnalyticsApi implements IAnalyticsApi {
   }
 
   private _stopQueueProcessing(): void {
-    if (!this.started) return;
-    this.started = false;
-    if (this.queueTimer) {
+    if (this.queueTimer !== null) {
       clearInterval(this.queueTimer);
+      this.queueTimer = null;
     }
   }
 
   private async _processQueue(): Promise<void> {
-    if (this.eventQueue.length === 0) return;
-    const events = this.eventQueue.splice(0, 5);
-    await this._sendEvents(events);
-    if (this.eventQueue.length === 0) {
-      this._stopQueueProcessing();
+    if (this.processingQueue || this.eventQueue.length === 0) return;
+    this.processingQueue = true;
+    try {
+      const events = this.eventQueue.splice(0, 5);
+      await this._sendEvents(events);
+    } finally {
+      this.processingQueue = false;
+      if (this.eventQueue.length === 0) {
+        this._stopQueueProcessing();
+      }
     }
   }
 
   async _getCid(): Promise<string> {
+    if (this.cid) {
+      return this.cid;
+    }
+    if (!this.cidPromise) {
+      this.cidPromise = this._loadOrCreateCid().finally(() => {
+        this.cidPromise = undefined;
+      });
+    }
+    return this.cidPromise;
+  }
+
+  private async _loadOrCreateCid(): Promise<string> {
     this.cid = await getItem('analytics:cid');
     if (this.cid) {
       return this.cid;
@@ -235,7 +267,7 @@ class AnalyticsApi implements IAnalyticsApi {
         en: event.name,
         cid,
         pscdl: 'noapi',
-        sid: String(this.sessionId),
+        sid: String(event.sessionId),
         'ep.origin': 'firebase',
         _z: 'fetch',
         _p: '' + Date.now(),
@@ -254,7 +286,7 @@ class AnalyticsApi implements IAnalyticsApi {
         queryParams.append('ep.debug_mode', '1');
       }
 
-      if (this.consent && !this.consent.ad_personalization) {
+      if (this.consent.ad_personalization === false) {
         queryParams.append('npa', '1');
       } else {
         queryParams.append('npa', '0');

@@ -22,11 +22,12 @@
 #import "FirebaseFirestoreInternal/FIRPersistentCacheIndexManager.h"
 #import "RNFBApp/RCTConvert+FIRApp.h"
 #import "RNFBFirestoreCommon.h"
+#import "RNFBFirestoreListenerRegistry.h"
 #import "RNFBFirestoreTurboModules.h"
 #import "RNFBPreferences.h"
 
 NSMutableDictionary *emulatorConfigs;
-static __strong NSMutableDictionary *snapshotsInSyncListeners;
+static RNFBFirestoreListenerRegistry *snapshotsInSyncListeners;
 static NSString *const RNFB_FIRESTORE_SNAPSHOTS_IN_SYNC = @"firestore_snapshots_in_sync_event";
 
 @interface RNFBFirestoreModule () <NativeRNFBTurboFirestoreSpec, RCTBridgeModule>
@@ -45,6 +46,23 @@ RCT_EXPORT_MODULE(NativeRNFBTurboFirestore);
 
 + (BOOL)requiresMainQueueSetup {
   return NO;
+}
+
+- (id)init {
+  self = [super init];
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken, ^{
+    snapshotsInSyncListeners = [[RNFBFirestoreListenerRegistry alloc] init];
+  });
+  return self;
+}
+
+- (void)dealloc {
+  [self invalidate];
+}
+
+- (void)invalidate {
+  [snapshotsInSyncListeners removeAll];
 }
 
 #pragma mark -
@@ -207,13 +225,26 @@ RCT_EXPORT_MODULE(NativeRNFBTurboFirestore);
   FIRFirestore *instance = [RNFBFirestoreCommon getFirestoreForApp:firebaseApp
                                                         databaseId:databaseId];
 
+  // Evict only after terminate completes. Clearing instanceCache beforehand lets a concurrent
+  // getFirestoreForApp rebuild a production-hosted client while the singleton is still shutting
+  // down; later connectFirestoreEmulator is then too late and getDoc can hang (CI release flake).
+  // Cache key must be native FIRApp.name (__FIRAPP_DEFAULT), not the JS bridge name ([DEFAULT]).
   [instance terminateWithCompletion:^(NSError *error) {
     if (error) {
       [RNFBFirestoreCommon promiseRejectFirestoreException:reject error:error];
     } else {
-      NSString *firestoreKey = [RNFBFirestoreCommon createFirestoreKeyWithAppName:appName
+      NSString *firestoreKey = [RNFBFirestoreCommon createFirestoreKeyWithAppName:[firebaseApp name]
                                                                        databaseId:databaseId];
       [instanceCache removeObjectForKey:firestoreKey];
+
+      // emulatorConfigs is keyed by the JS bridge appName; clear so a later
+      // connectFirestoreEmulator can attach the emulator to a freshly created FIRFirestore.
+      if (emulatorConfigs != nil) {
+        NSString *emulatorKey = [RNFBFirestoreCommon createFirestoreKeyWithAppName:appName
+                                                                        databaseId:databaseId];
+        [emulatorConfigs removeObjectForKey:emulatorKey];
+      }
+
       resolve(nil);
     }
   }];
@@ -256,7 +287,7 @@ RCT_EXPORT_MODULE(NativeRNFBTurboFirestore);
                 listenerId:(double)listenerId {
   FIRApp *firebaseApp = [RCTConvert firAppFromString:appName];
   NSNumber *listenerIdNumber = @(listenerId);
-  if (snapshotsInSyncListeners[listenerIdNumber]) {
+  if ([snapshotsInSyncListeners get:listenerIdNumber] != nil) {
     return;
   }
 
@@ -273,18 +304,14 @@ RCT_EXPORT_MODULE(NativeRNFBTurboFirestore);
                                                }];
   }];
 
-  snapshotsInSyncListeners[listenerIdNumber] = listener;
+  [snapshotsInSyncListeners putOrDiscard:listenerIdNumber value:listener];
 }
 
 - (void)removeSnapshotsInSync:(NSString *)appName
                    databaseId:(NSString *)databaseId
                    listenerId:(double)listenerId {
   NSNumber *listenerIdNumber = @(listenerId);
-  id<FIRListenerRegistration> listener = snapshotsInSyncListeners[listenerIdNumber];
-  if (listener) {
-    [listener remove];
-    [snapshotsInSyncListeners removeObjectForKey:listenerIdNumber];
-  }
+  [snapshotsInSyncListeners takeAndRemove:listenerIdNumber];
 }
 
 - (NSMutableDictionary *)taskProgressToDictionary:(FIRLoadBundleTaskProgress *)progress {

@@ -228,6 +228,7 @@ jobs:
           path: .nx/cache
           key: ${{ runner.os }}-nx-v1-${{ hashFiles('yarn.lock', 'nx.json', 'lerna.json') }}
           restore-keys: ${{ runner.os }}-nx-v1
+
       - name: Setup Ruby
         # https://github.com/ruby/setup-ruby/releases
         uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
@@ -258,6 +259,11 @@ jobs:
           retry_wait_seconds: 60
           max_attempts: 3
           command: yarn
+
+      # In-package macOS XCTest (Foundation). Analogous to yarn tests:android:unit.
+      # Produces coverage/ios-unit/lcov.info and merges into coverage/ios-native/lcov.info.
+      - name: iOS XCTest unit tests
+        run: yarn tests:ios:unit
 
       - name: Verify Firebase SPM Ruby helpers
         if: matrix.buildmode == 'debug' && matrix.dep-resolution == 'spm'
@@ -306,6 +312,7 @@ jobs:
       - name: Install yeetd and fix iOS perf issues
         run: |
           wget https://github.com/biscuitehh/yeetd/releases/download/1.0/yeetd-normal.pkg
+          echo "adb04eb720581a32d94daef3ea61108c74494083a79f00836556a36214f354be  yeetd-normal.pkg" | shasum -a 256 -c -
           sudo installer -pkg yeetd-normal.pkg -target /
           yeetd &
           launchctl unload -w /System/Library/LaunchAgents/com.apple.ReportCrash.plist
@@ -402,16 +409,29 @@ jobs:
           ./.github/workflows/scripts/wait-for-load-settle.sh
 
       - name: Detox Test Debug
+        id: detox_debug
         if: contains(matrix.buildmode, 'debug')
         timeout-minutes: 82
         run: |
           yarn tests:ios:test-cover 2>&1 | tee detox-step.log
           exit ${PIPESTATUS[0]}
 
+      # Presence guard: empty packagesHits or missing profraw exits non-zero (prefer 2).
+      # Do not continue-on-error — silent empty coverage must fail CI when Detox passed.
+      # Mirror android-e2e-detox.sh: do not fail the job on coverage when Detox already failed.
       - name: Process iOS native coverage
         if: always() && contains(matrix.buildmode, 'debug')
-        continue-on-error: true
-        run: yarn tests:ios:test:process-coverage
+        run: |
+          set -uo pipefail
+          COVERAGE_EXIT=0
+          yarn tests:ios:test:process-coverage || COVERAGE_EXIT=$?
+          if [[ "${{ steps.detox_debug.outcome }}" == "success" && "$COVERAGE_EXIT" -ne 0 ]]; then
+            exit "$COVERAGE_EXIT"
+          fi
+          if [[ "$COVERAGE_EXIT" -ne 0 ]]; then
+            echo "Detox outcome=${{ steps.detox_debug.outcome }}; not failing job on coverage exit ${COVERAGE_EXIT}"
+          fi
+          exit 0
 
       - name: Detox Test Release
         if: contains(matrix.buildmode, 'release')

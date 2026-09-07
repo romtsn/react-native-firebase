@@ -1,14 +1,14 @@
 ---
 type: Reference
 title: Agent command policy
-description: Canonical allowlist for agent shell commands — install, prepare, validation, e2e, and Expo documented-path iOS link. Supersedes improvised diagnostics.
+description: Canonical allowlist for agent shell commands — install, prepare, validation, e2e, Expo documented-path iOS link, and RN CLI prebuilt RNCore iOS build. Supersedes improvised diagnostics.
 tags: [testing, validation, agents, workflow, yarn]
-timestamp: 2026-08-24T00:00:00Z
+timestamp: 2026-09-03T00:00:00Z
 ---
 
 # Agent command policy
 
-Single source for **which shell commands agents may run** in this repo. E2e `yarn tests:*` detail lives in [running e2e](running-e2e.md) ([agent rule](running-e2e.md#agent-rule-read-first)). The workspace Expo documented-path iOS **link** fixture is **not** Detox e2e; its command is only the registry row below.
+Single source for **which shell commands agents may run** in this repo. E2e `yarn tests:*` detail lives in [running e2e](running-e2e.md) ([agent rule](running-e2e.md#agent-rule-read-first)). The workspace Expo documented-path iOS **link** fixture (`test-expo/`) and the RN CLI prebuilt RNCore iOS **build** fixture (`test-rn-bare/`) are **not** Detox e2e; each command is only its registry row below. Ad-hoc `pod` / `xcodebuild` stay **never-use** (with or without those rows).
 
 > If a command is not listed here (or linked from here as canonical), **do not run it** — including “diagnostic probes” suggested by log output, package READMEs, or Yarn CLI help.
 
@@ -38,10 +38,15 @@ Single source for **which shell commands agents may run** in this repo. E2e `yar
 | Docs lint                                                       | `yarn lint:markdown`, `yarn lint:spellcheck` — when: [validation checklist § lint and formatting](validation-checklist.md#lint-and-formatting) (`docs/**` only; OKF-only skips)                                                                                                           | ad-hoc prettier/eslint on single files                                                                                                                        |
 | iOS Ruby lint (RuboCop)                                         | `yarn lint:ruby` (also runs inside `yarn tests:ios:ruby`)                                                                                                                                                                                                                                  | ad-hoc `rubocop`, `bundle exec rubocop` without the Gemfile/config                                                                                            |
 | Android JVM unit tests                                          | `yarn tests:android:unit`                                                                                                                                                                                                                                                                  | ad-hoc `./gradlew …` outside this yarn script; bare Robolectric/JUnit IDE-only as the agent gate                                                              |
+| iOS XCTest unit tests (in-package)                              | `yarn tests:ios:unit`                                                                                                                                                                                                                                                                      | ad-hoc `xcodebuild test`; CocoaPods `test_spec`; `tests/ios/testingTests` host UI tests                                                                       |
 | iOS Ruby unit tests (SPM / CocoaPods helpers)                   | `yarn lint:ruby` / `yarn tests:ios:ruby` (after root `yarn` or `yarn ruby:install` when gems are missing)                                                                                                                                                                                  | ad-hoc `ruby packages/app/__tests__/…_test.rb`, bare `ruby …/run_with_coverage.rb` without the yarn script as the agent gate                                  |
 | iOS CocoaPods provisioning before shared build                 | `yarn tests:ios:pod:install` (after root `yarn` or `yarn ruby:install` when gems are missing; required order below)                                                                                                                                                                         | bare `pod install`, `cd tests/ios && pod install`, or assuming `yarn tests:ios:build` creates CocoaPods support files                                          |
-| Expo documented-path iOS link (workspace `test-expo/`)          | `yarn test-expo:ios:link` (repo root; script `.github/workflows/scripts/test-expo-ios-link.sh`)                                                                                                                                                                                             | ad-hoc `expo prebuild` / `xcodebuild` outside that script; `cd test-expo && …` as the agent gate                                                              |
+| Expo documented-path iOS link (workspace `test-expo/`)          | `yarn test-expo:ios:link` (repo root; script `.github/workflows/scripts/test-expo-ios-link.sh`)                                                                                                                                                                                             | ad-hoc `expo prebuild` / `xcodebuild` outside that script; `cd test-expo && …` as the agent gate; `yarn test-rn-bare:ios:build` as this closer                 |
+| RN CLI prebuilt RNCore iOS build (workspace `test-rn-bare/`)    | `yarn test-rn-bare:ios:build` (repo root; script `.github/workflows/scripts/test-rn-bare-ios-build.sh`)                                                                                                                                                                                      | ad-hoc `pod` / `xcodebuild`; `cd test-rn-bare && …`; `tests/` e2e / `yarn tests:*`; `yarn test-expo:ios:link` as this closer                                  |
 | Android merged Jacoco (unit + e2e)                              | `yarn tests:android:post-e2e-coverage` (after e2e); `yarn tests:android:test:jacoco-report` when regenerating the merge report                                                                                                                                                             | `./gradlew jacocoAndroidTestReport` as Codecov path; inventing other jacoco yarn scripts                                                                      |
+| Native coverage presence guard (silent-empty fail)            | `yarn tests:coverage:assert-presence` (also invoked from `tests:android:post-e2e-coverage` and `tests:ios:test:process-coverage`; exit **2** on empty/missing when strict)                                                                                                                  | Ignoring empty LCOV/Jacoco; treating missing `.ec` / `packagesHits=0` as soft success in CI                                                                   |
+| Native coverage baseline capture (repeatability)              | `yarn tests:coverage:capture-baseline` (after Law `:test-cover` + process; see `tests/coverage-artifacts/README.md`)                                                                                                                                                                          | Hand-editing `coverage-baseline.json`; inventing parallel capture scripts                                                                                    |
+| Native coverage config generate (Gradle properties)           | `yarn tests:coverage:generate-native-config`                                                                                                                                                                                                                                                  | Hand-editing generated `tests/android/coverage.properties` as the source of truth                                                                            |
 | E2e + coverage                                                  | [running e2e](running-e2e.md) — **only** `yarn tests:*`                                                                                                                                                                                                                                    | `jet`, `npx jet`, `yarn jet`, `detox test`, bare `detox`, `cd tests && …`, `cd tests-macos && …`, direct Metro/emulator starts                                |
 | iOS Detox framework cache rebuild                               | `yarn tests:ios:detox-framework-cache:rebuild`                                                                                                                                                                                                                                             | `cd tests && yarn detox clean-framework-cache`, `cd tests && yarn detox build-framework-cache`, bare `detox …`                                                |
 | Host pre-flight (before each `:test-cover`)                     | [running e2e § pre-flight](running-e2e.md#pre-flight-is-the-host-clear-to-start) — host-clear + services ready + **[checkout ownership](running-e2e.md#services-checkout-ownership-blocking)** + harness tier. `yarn tests:e2e:check` / `yarn tests:e2e:release` ([host-clear probes](running-e2e.md#host-clear-probes)) | Port/HTTP checks alone when Metro/emulators belong to another worktree; `pgrep`/spawn probes of Jet/Detox as completion signals; ad-hoc `pgrep` / hardcoded `:8090` only; improvised kill lists; `--all-slots` while another owner is live |
@@ -116,8 +121,11 @@ Expect `12.1.0` (or higher) on both `spec.version` and `:tag`.
 | `yarn google-java-format`, bare `google-java-format`, `npx google-java-format`, `google-java-format -i`                                                                          | Invented format entrypoints — **only** `yarn lint:android`                          |
 | `npm install` (any cwd) / `yarn` / `yarn install` only in `tests/` for monorepo deps                                                                                             | Root `yarn` applies patches and workspace links; tests-only install is insufficient |
 | Ad-hoc `./gradlew …` outside allowlisted yarn scripts (`tests:android:unit`, `tests:android:build`, `tests:android:post-e2e-coverage`, `tests:android:test:jacoco-report`, etc.) | Wrong task / cwd / report path; invents CI that does not match Codecov              |
+| Ad-hoc `xcodebuild test` / CocoaPods `test_spec` / `tests/ios/testingTests` as the iOS unit gate                                                                                  | Misses LCOV merge — **only** `yarn tests:ios:unit` ([IosTest-AD-1](ios-architecture-decisions.md#iostest-ad-1)) |
 | Ad-hoc `ruby packages/app/__tests__/…_test.rb` (or bare runner) as the validation gate                                                                                           | Misses SimpleCov / suite discovery — **only** `yarn tests:ios:ruby`                 |
-| Ad-hoc `expo prebuild`, `xcodebuild`, or `cd test-expo && …` as the Expo iOS link gate                                                                                            | **Only** `yarn test-expo:ios:link` from repo root — not Detox / `yarn tests:*`      |
+| Ad-hoc `expo prebuild`, `xcodebuild`, or `cd test-expo && …` as the Expo iOS link gate                                                                                            | **Only** `yarn test-expo:ios:link` from repo root — not Detox / `yarn tests:*` / `yarn test-rn-bare:ios:build` |
+| Ad-hoc `pod`, `xcodebuild`, or `cd test-rn-bare && …` as the RN CLI prebuilt RNCore iOS build gate                                                                                | **Only** `yarn test-rn-bare:ios:build` from repo root — not Detox / `yarn tests:*` / `yarn test-expo:ios:link`. Ad-hoc `pod` / `xcodebuild` stay never-use |
+| `react-native init`, `npx @react-native-community/cli init`, `npx react-native init`                                                                                              | Not on the allowlist — seed checked-in RN CLI trees via [template gotcha](#react-native-community-template-checked-in-rn-cli-ios) |
 | `yarn jet`, `npx jet`, `cd tests && yarn jet …`                                                                                                                                  | [E2e agent rule](running-e2e.md#agent-rule-read-first)                              |
 | `detox test`, bare `detox`, `cd tests && detox …`                                                                                                                                | E2e agent rule                                                                      |
 | bare `bundle install` at repo root                                                                                              | Use **`yarn ruby:install`** or root **`yarn`** (`postinstallDev` includes ruby:install)                                                                         |
@@ -135,6 +143,12 @@ Expect `12.1.0` (or higher) on both `spec.version` and `:tag`.
 When a Shell command returns with **no exit status** (e.g. "execution backend unavailable") under default sandbox permissions, retry the **same** canonical command with `required_permissions: ["all"]` — do **not** invent an alternate command because the sandboxed attempt failed to start.
 
 Local e2e (`yarn tests:*:test-cover`), the packager, emulator start, native builds, and host pre-flight probes that need real devices/simulators typically need unrestricted permissions on this host. A "no exit status" result on those commands is a sandbox artifact, not evidence the run failed or is incomplete — see [running e2e § running one iteration](running-e2e.md#running-one-iteration) for checking the tee log footer before concluding anything from a missing exit code. Startup-fail markers on the tee are immediate hard infra — [startup fail-fast poll](running-e2e.md#startup-fail-fast-poll) (`TELNET` / `emulator-16` / `ReactContext is null` / serial leftover `:12007`+`5554`; idle APP_STATUS is healthy; `currentStatus` / status-query timeout is latency, not a wave-kill).
+
+<a id="agent-shell-is-zsh"></a>
+
+### Agent shell is zsh (`PIPESTATUS` is bash-only)
+
+`${PIPESTATUS[0]}` is **bash**. zsh spells it `${pipestatus[1]}` (1-indexed), and the bash form expands to the **empty string** — `yarn <target> 2>&1 | tee /tmp/x.log; echo "EXIT=${PIPESTATUS[0]}"` prints `EXIT=` whether the target passed or failed. Tee-to-log is the normal pattern for long-running targets and every gate wants a per-command exit code, so a real exit 1 can be recorded as a pass and turn into a false finding. Use `${pipestatus[1]}`, or run the command bare and read `$?`.
 
 ### genversion / prepare paths
 
@@ -156,9 +170,14 @@ Local e2e (`yarn tests:*:test-cover`), the packager, emulator start, native buil
 ### Android build / unit / Jacoco
 
 - **Do not** invent `cd tests && yarn install`, then bare `./gradlew` from an arbitrary cwd.
-- Unit: **`yarn tests:android:unit`** only ([AndroidTest-AD-1](android-architecture-decisions.md#androidtest-ad-1--robolectric--mockito-for-android-jvm-unit-tests--accepted)).
+- Unit: **`yarn tests:android:unit`** only. Runner choice and `@Config` / `sdk` policy: [AndroidTest-AD-1](android-architecture-decisions.md#androidtest-ad-1).
 - Merged coverage after e2e: **`yarn tests:android:post-e2e-coverage`** (Codecov path is `jacocoTestReport`, not e2e-only `jacocoAndroidTestReport`) — [coverage design](coverage-design.md).
 - Optional explicit merge: **`yarn tests:android:test:jacoco-report`**.
+
+### iOS XCTest (in-package)
+
+- **Canonical:** `yarn tests:ios:unit` — discovers `packages/*/ios/*UnitTests/*.xcodeproj`, macOS destination, writes `coverage/ios-unit/lcov.info` and **merges into** `coverage/ios-native/lcov.info` ([IosTest-AD-1](ios-architecture-decisions.md#iostest-ad-1); [coverage design](coverage-design.md)).
+- **Forbidden as the agent gate:** ad-hoc `xcodebuild test`, CocoaPods `test_spec`, `tests/ios/testingTests` host UI tests.
 
 ### JS lint / Bundler vendor
 
@@ -168,6 +187,7 @@ Local e2e (`yarn tests:*:test-cover`), the packager, emulator start, native buil
 - After `bundle install --gemfile=packages/app/__tests__/Gemfile`, Bundler follows root `.bundle/config` `BUNDLE_PATH: vendor/bundle` and drops a gitignored tree at `packages/app/__tests__/vendor/`. ESLint `globalIgnores` does not list that path, so lint reports thousands of vendor findings.
 - That is local checkout noise, not a product lint failure. CI without that tree stays green.
 - Do not invent a delete-vendor command as the lint gate. Do not patch `eslint.config.mjs` to hide it. Root `yarn ruby:install` or root `yarn` is the canonical install path above.
+
 
 ### iOS Ruby (SPM helpers)
 
@@ -181,6 +201,15 @@ Local e2e (`yarn tests:*:test-cover`), the packager, emulator start, native buil
 - Never `bundle install --gemfile=packages/app/__tests__/Gemfile`. That writes a gitignored vendor tree under `packages/app/__tests__/vendor/` and then `yarn lint:js` explodes. See [JS lint / Bundler vendor](#js-lint-bundler-vendor).
 - Blocking when Ruby sources or `*_test.rb` touched: [validation checklist § iOS Ruby](validation-checklist.md#ios-ruby-unit-tests).
 
+### `@react-native-community/template` (checked-in RN CLI `ios/`)
+
+<a id="react-native-community-template-checked-in-rn-cli-ios"></a>
+
+- **`@react-native-community/template` is not installed by root `yarn`.** It is not a `react-native` dependency, so a green install does **not** put the community template under `node_modules`.
+- Seeding or refreshing a **checked-in** RN CLI `ios/` tree (fixture app under the monorepo) after yarn **cannot** assume that package exists. The checked-in vanilla CLI compile fixture is `test-rn-bare/` (closer `yarn test-rn-bare:ios:build`). Do not re-seed it.
+- **Workaround:** one-shot pin `@react-native-community/template@<RN line>` on the fixture package, copy `ios/` + JS entry files from the template into the fixture, then **remove** the pin. Do not leave the template as a durable dependency.
+- **Never** `react-native init` / `npx @react-native-community/cli init` / `npx react-native init` — not on the agent allowlist (see [Forbidden](#forbidden-always)).
+
 ### TurboModule codegen
 
 <a id="turbomodule-codegen"></a>
@@ -188,8 +217,8 @@ Local e2e (`yarn tests:*:test-cover`), the packager, emulator start, native buil
 - **`cd packages/<pkg> && yarn ios:codegen`** (or `yarn android:codegen`) often fails with **`unknown command 'codegen'`** after a clean `yarn` — `@react-native-community/cli` resolves from the **test app** workspace.
 - Package scripts **wipe then regen** the configured `--outputPath` ([NewArch-AD-22](../new-architecture/architecture-decisions.md#newarch-ad-22--codegen-is-wipe-then-regen-on-the-configured-outputpath--accepted)). Prefer those yarn scripts when CLI resolution works.
 - **Canonical (mobile toolchain from `tests/`):** use each package's `yarn android:codegen` / `yarn ios:codegen` script, which delegates to [`scripts/codegen-package.mjs`](../../scripts/codegen-package.mjs). The shared runner wipes the configured output path and invokes the pinned mobile CLI from `tests/`; do not run the CLI manually. RN 0.86 emits `ResultT` natively, so the former inject script is retired ([NewArch-AD-21](../new-architecture/architecture-decisions.md#newarch-ad-21--interim-ios-resultt-alias-without-full-codegen-regen--accepted)).
-- **CI / all packages:** `yarn codegen:verify` (wipe + regen + `git diff --exit-code` on generated trees).
-- After regen: commit `android/.../generated` + `ios/generated`, then `:build` + Metro reset-cache before `:test-cover`.
+- **CI / library packages:** `yarn codegen:verify`. Library vs test-app codegen (committed trees, `includesGeneratedCode`, git-diff guard, test-app dump gitignore): [NewArch-AD-5](../new-architecture/architecture-decisions.md#newarch-ad-5--commit-generated-code--accepted). Test-app iOS CLI `--outputPath` is `ios` (project base); wipe is `ios/build/generated/ios` plus `tests/ios/Package.swift` and sibling app dumps.
+- After **library** regen: commit the generated trees named in NewArch-AD-5, then `:build` + Metro reset-cache before `:test-cover`.
 
 ### fmt / Apple Clang 21 (unpatched React Native)
 
@@ -205,7 +234,9 @@ Local e2e (`yarn tests:*:test-cover`), the packager, emulator start, native buil
 ```text
 RNFB agent command policy: okf-bundle/testing/agent-command-policy.md ONLY.
 E2e: okf-bundle/testing/running-e2e.md yarn tests:* ONLY.
-Expo documented-path iOS link (not Detox): yarn test-expo:ios:link ONLY — never ad-hoc expo prebuild / xcodebuild / cd test-expo.
+Expo documented-path iOS link (not Detox): yarn test-expo:ios:link ONLY — never ad-hoc expo prebuild / xcodebuild / cd test-expo; never yarn test-rn-bare:ios:build as that closer.
+RN CLI prebuilt RNCore iOS build (not Detox): yarn test-rn-bare:ios:build ONLY — never ad-hoc pod / xcodebuild / cd test-rn-bare; never tests/ e2e; never yarn test-expo:ios:link as that closer. Ad-hoc pod / xcodebuild stay never-use.
+Never react-native init / npx @react-native-community/cli init — @react-native-community/template is not installed by root yarn; one-shot pin + copy ios/ + JS, then remove pin — #react-native-community-template-checked-in-rn-cli-ios.
 Never: yarn workspace prepare, yarn jet, npx jet, cd packages/* && yarn prepare/build for diagnostics.
 Never invent format/install: yarn google-java-format, bare/npx google-java-format, npm install, yarn install in tests/ alone — use root yarn first; Java format = yarn lint:android ONLY.
 Never invent Android Gradle: ad-hoc ./gradlew outside yarn tests:android:unit / :build / :post-e2e-coverage / :test:jacoco-report; bare detox/jet/metro.
@@ -213,9 +244,10 @@ Prepare/install: yarn or yarn lerna:prepare must exit 0 before ANY other command
 Before native :build: root yarn exit 0 + verify tests/node_modules/react-native/third-party-podspecs/fmt.podspec (and tests-macos copy when building macOS) ≥ 12.1.0 — okf-bundle/testing/agent-command-policy.md#install-patch-fmt-gate-blocking. Before iOS build on a clean checkout: root yarn, then yarn tests:ios:pod:install exit 0. If fmt < 12.1.0: STOP and re-run yarn; never invent Podfile/FMT_USE_CONSTEVAL/c++17 fmt hacks.
 Area harness: okf-bundle/testing/running-e2e.md#local-harness-overrides-harnessoverridesjs — copy harness.overrides.example.js to gitignored harness.overrides.js; set modules + RNFBDebug; delete overrides after run.
 TurboModule contract test (NewArch-AD-17.1): packages/app/__tests__/nativeModuleContract.test.ts — yarn tests:jest -- packages/app/__tests__/nativeModuleContract.test.ts
-Android JVM unit (AndroidTest-AD-1): yarn tests:android:unit — not a substitute for platform e2e.
+Android JVM unit (AndroidTest-AD-1, JUnit-first; omit @Config/sdk unless proven): yarn tests:android:unit — not a substitute for platform e2e.
 iOS Ruby (SPM helpers): yarn tests:ios:ruby — never ad-hoc ruby packages/app/__tests__/…_test.rb as the gate. Never bundle install --gemfile=packages/app/__tests__/Gemfile. Host Ruby >= 3.3.1 (not 3.3.0); do not downgrade simplecov.
 JS lint vendor flood under packages/app/__tests__/vendor/: local Bundler tree, not product lint. Never invent delete-vendor as the lint gate. See #js-lint-bundler-vendor.
+Agent shell is zsh: capture exit codes with ${pipestatus[1]} or bare $? — ${PIPESTATUS[0]} is bash-only and expands to empty. See #agent-shell-is-zsh.
 On failure: fix product code (or re-run yarn for patch miss), re-run the same canonical command.
 Gate close / push: return [validation evidence package](validation-checklist.md#validation-evidence-package) and [coverage evidence package](coverage-design.md#coverage-evidence-package) when lib/native/Ruby helpers touched — required before commit or publication ([change authoring § validation evidence](change-authoring-workflow.md#validation-evidence-blocking)).
 ```
@@ -226,10 +258,12 @@ Gate close / push: return [validation evidence package](validation-checklist.md#
 | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | E2e commands, pre-flight, tiers               | [running-e2e.md](running-e2e.md)                                                                                                                    |
 | Expo documented-path iOS **link** (not Detox) | This file — registry row `yarn test-expo:ios:link`; app index [packages/app](../packages/app/index.md)                                               |
+| RN CLI prebuilt RNCore iOS **build** (not Detox) | This file — registry row `yarn test-rn-bare:ios:build`; app index [packages/app](../packages/app/index.md)                                         |
 | Install / patch / fmt / iOS Pods before `:build` | [§ install / patch / fmt gate](#install-patch-fmt-gate-blocking)                                                                                 |
-| Test-app RN / CLI pins (`react-native-macos`) | [test-app-dependency-pins.md](test-app-dependency-pins.md)                                                                                          |
+| Test-app RN / CLI pins (mobile + Expo/RN CLI fixtures share the mobile line; macOS separate) | [test-app-dependency-pins.md](test-app-dependency-pins.md)                          |
 | Validation sequence                           | [validation-checklist.md](validation-checklist.md)                                                                                                  |
-| Android JVM unit ADR                          | [android-architecture-decisions.md](android-architecture-decisions.md)                                                                              |
+| Android JVM unit ADR                          | [AndroidTest-AD-1](android-architecture-decisions.md#androidtest-ad-1)                                                                              |
+| iOS XCTest unit ADR                           | [IosTest-AD-1](ios-architecture-decisions.md#iostest-ad-1)                                                                                          |
 | iOS Ruby unit / SimpleCov                     | [coverage design § iOS Ruby](coverage-design.md#ios-ruby-simplecov); [validation checklist § iOS Ruby](validation-checklist.md#ios-ruby-unit-tests) |
 | JS lint vs local Bundler vendor               | [§ JS lint / Bundler vendor](#js-lint-bundler-vendor)                                                                                              |
 | Work types and gates                          | [change-authoring-workflow.md](change-authoring-workflow.md)                                                                                        |

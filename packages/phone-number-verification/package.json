@@ -1,6 +1,6 @@
 {
   "name": "@react-native-firebase/phone-number-verification",
-  "version": "26.3.2",
+  "version": "26.4.0",
   "author": "Invertase <oss@invertase.io> (http://invertase.io)",
   "description": "React Native Firebase - Phone Number Verification",
   "main": "./dist/module/index.js",
@@ -23,6 +23,7 @@
     "android:codegen": "node ../../scripts/codegen-package.mjs phone-number-verification android",
     "ios:codegen": "node ../../scripts/codegen-package.mjs phone-number-verification ios"
   },
+  "homepage": "https://rnfirebase.io",
   "repository": {
     "type": "git",
     "url": "https://github.com/invertase/react-native-firebase",
@@ -37,10 +38,10 @@
     "pnv"
   ],
   "peerDependencies": {
-    "@react-native-firebase/app": "26.3.2"
+    "@react-native-firebase/app": "26.4.0"
   },
   "devDependencies": {
-    "@react-native-firebase/app": "26.3.2",
+    "@react-native-firebase/app": "26.4.0",
     "react-native-builder-bob": "^0.41.0",
     "typescript": "^6.0.3"
   },

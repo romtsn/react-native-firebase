@@ -84,34 +84,36 @@ class FirebaseMessagingModule extends FirebaseModule<typeof nativeModuleName> im
       this.native.getConstants?.()?.isNotificationDelegationEnabled ?? false;
 
     AppRegistry.registerHeadlessTask('ReactNativeFirebaseMessagingHeadlessTask', () => {
-      if (!backgroundMessageHandler) {
+      const handler = backgroundMessageHandler;
+      if (!handler) {
         // eslint-disable-next-line no-console
         console.warn(
           'No background message handler has been set. Set a handler via the "setBackgroundMessageHandler" method.',
         );
         return () => Promise.resolve();
       }
-      return (remoteMessage: RemoteMessage) => backgroundMessageHandler!(remoteMessage);
+      return (remoteMessage: RemoteMessage) => Promise.resolve().then(() => handler(remoteMessage));
     });
 
     if (isIOS) {
       this.emitter.addListener(
         'messaging_message_received_background',
         (remoteMessage: RemoteMessage) => {
-          if (!backgroundMessageHandler) {
+          const handler = backgroundMessageHandler;
+          let handlerPromise: Promise<any>;
+          if (!handler) {
             // eslint-disable-next-line no-console
             console.warn(
               'No background message handler has been set. Set a handler via the "setBackgroundMessageHandler" method.',
             );
-            return Promise.resolve();
+            handlerPromise = Promise.resolve();
+          } else {
+            handlerPromise = Promise.resolve().then(() => handler(remoteMessage));
           }
 
-          const handlerPromise = Promise.resolve(backgroundMessageHandler(remoteMessage));
-          handlerPromise.finally(() => {
+          return handlerPromise.finally(() => {
             this.native.completeNotificationProcessing();
           });
-
-          return handlerPromise;
         },
       );
 
@@ -161,8 +163,9 @@ class FirebaseMessagingModule extends FirebaseModule<typeof nativeModuleName> im
       throw new Error("getMessaging().setAutoInitEnabled(*) 'enabled' expected a boolean value.");
     }
 
-    this._isAutoInitEnabled = enabled;
-    return this.native.setAutoInitEnabled(enabled);
+    return this.native.setAutoInitEnabled(enabled).then(() => {
+      this._isAutoInitEnabled = enabled;
+    });
   }
 
   getInitialNotification(): Promise<RemoteMessage | null> {
@@ -309,8 +312,9 @@ class FirebaseMessagingModule extends FirebaseModule<typeof nativeModuleName> im
       );
     }
 
-    this._isRegisteredForRemoteNotifications = true;
-    return this.native.registerForRemoteNotifications();
+    return this.native.registerForRemoteNotifications().then(() => {
+      this._isRegisteredForRemoteNotifications = true;
+    });
   }
 
   /**
@@ -320,8 +324,9 @@ class FirebaseMessagingModule extends FirebaseModule<typeof nativeModuleName> im
     if (isAndroid) {
       return Promise.resolve();
     }
-    this._isRegisteredForRemoteNotifications = false;
-    return this.native.unregisterForRemoteNotifications();
+    return this.native.unregisterForRemoteNotifications().then(() => {
+      this._isRegisteredForRemoteNotifications = false;
+    });
   }
 
   /**
@@ -352,6 +357,12 @@ class FirebaseMessagingModule extends FirebaseModule<typeof nativeModuleName> im
       return Promise.resolve();
     }
 
+    if (token.length === 0 || token.length % 2 !== 0 || !/^[0-9a-f]+$/i.test(token)) {
+      throw new Error(
+        "getMessaging().setAPNSToken(*) 'token' expected a non-empty, even-length hexadecimal string.",
+      );
+    }
+
     return this.native.setAPNSToken(token, type);
   }
 
@@ -379,7 +390,10 @@ class FirebaseMessagingModule extends FirebaseModule<typeof nativeModuleName> im
       throw new Error("getMessaging().onMessageSent(*) 'listener' expected a function.");
     }
 
-    const subscription = this.emitter.addListener('messaging_message_sent', listener);
+    const subscription = this.emitter.addListener(
+      'messaging_message_sent',
+      (event: { messageId: string }) => listener(event.messageId),
+    );
     return () => {
       subscription.remove();
     };
@@ -473,8 +487,9 @@ class FirebaseMessagingModule extends FirebaseModule<typeof nativeModuleName> im
       );
     }
 
-    this._isDeliveryMetricsExportToBigQueryEnabled = enabled;
-    return this.native.setDeliveryMetricsExportToBigQuery(enabled);
+    return this.native.setDeliveryMetricsExportToBigQuery(enabled).then(() => {
+      this._isDeliveryMetricsExportToBigQueryEnabled = enabled;
+    });
   }
 
   setNotificationDelegationEnabled(enabled: boolean): Promise<void> {
@@ -484,12 +499,13 @@ class FirebaseMessagingModule extends FirebaseModule<typeof nativeModuleName> im
       );
     }
 
-    this._isNotificationDelegationEnabled = enabled;
     if (isIOS) {
       return Promise.resolve();
     }
 
-    return this.native.setNotificationDelegationEnabled(enabled);
+    return this.native.setNotificationDelegationEnabled(enabled).then(() => {
+      this._isNotificationDelegationEnabled = enabled;
+    });
   }
 
   async isSupported(): Promise<boolean> {

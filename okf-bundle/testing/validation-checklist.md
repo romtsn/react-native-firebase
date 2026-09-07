@@ -37,7 +37,7 @@ yarn                                  # install + postinstallDev (lerna:prepare 
 yarn lerna:prepare                    # after packages/*/lib/** edits — transpiles lib → dist/module via each package prepare target
 yarn tsc:compile
 yarn tsc:compile:consumer
-yarn attw:check                    # scoped attw + Expo plugin smoke — [Types-AD-1..4](architecture-decisions.md)
+yarn attw:check                    # scoped attw + Expo plugin smoke; pack ignore — [Types-AD](architecture-decisions.md)
 ```
 
 `yarn lerna:prepare` runs each package **`prepare`** script (`build` then `compile`/bob). That is the canonical **`lib/**`→`dist/module/**`** path. Do **not** use `cd packages/<pkg> && yarn compile` as a substitute — `compile` is a step **inside** `prepare`, not a standalone agent entrypoint.
@@ -82,7 +82,7 @@ Optional: `yarn tests:jest-coverage`.
 When `packages/*/android/**` Java bridge/state-machine logic changed (or added under `src/test/java`):
 
 ```bash
-yarn tests:android:unit               # Robolectric + Mockito — [AndroidTest-AD-1](android-architecture-decisions.md#androidtest-ad-1--robolectric--mockito-for-android-jvm-unit-tests--accepted)
+yarn tests:android:unit               # JUnit-first — [AndroidTest-AD-1](android-architecture-decisions.md#androidtest-ad-1)
 ```
 
 Produces Jacoco `*.exec` that **counts** toward native touched-line coverage when merged. After Android e2e:
@@ -94,6 +94,18 @@ yarn tests:android:test:jacoco-report
 ```
 
 Merged Codecov path: `jacocoTestReport.xml` — [coverage design](coverage-design.md). JVM unit does **not** replace [platform coverage gate](running-e2e.md#platform-coverage-gate-blocking) e2e.
+
+<a id="ios-xctest-unit-tests"></a>
+
+## iOS XCTest unit tests
+
+When `packages/*/ios/**` Objective-C/C++ bridge logic changed (or an in-package `*UnitTests.xcodeproj` was added):
+
+```bash
+yarn tests:ios:unit                   # macOS/host-first — [IosTest-AD-1](ios-architecture-decisions.md#iostest-ad-1)
+```
+
+Produces `coverage/ios-unit/lcov.info` and **merges into** `coverage/ios-native/lcov.info`. After iOS e2e, `yarn tests:ios:test:process-coverage` merges unit LCOV again so e2e export does not drop XCTest hits — [coverage design](coverage-design.md). In-package XCTest does **not** replace [platform coverage gate](running-e2e.md#platform-coverage-gate-blocking) e2e.
 
 <a id="ios-ruby-unit-tests"></a>
 
@@ -134,7 +146,12 @@ Run **only** the scripts whose trees are in the diff (exit 0). Do not run the re
 | `packages/*/lib/**` | `yarn lint:deps` | Blocking. [dependency-cycle linting](../monorepo-tooling/prepare-and-cache.md#dependency-cycle-linting). |
 | Java under `packages/*/android` | `yarn lint:android` | **Implementation only.** `google-java-format --set-exit-if-changed --replace` — **mutates**. Only entrypoint ([agent command policy](agent-command-policy.md)); never invent `yarn google-java-format` / `npx google-java-format`. Can flake; rerun once/twice if failure is not clearly in diff. Commit formatter output. |
 | iOS native (`packages/*/ios` `.h` / `.cpp` / `.m` / `.mm`, not generated) | `yarn lint:ios:check` | clang-format **check** (`-n -Werror`). Implementation may `yarn lint:ios:fix` then re-check. |
-| `docs/**` | `yarn lint:markdown` then `yarn lint:spellcheck` | Scripts glob `docs/**` only (CI docs job). OKF-only diffs skip these. |
+| `docs/**` | `yarn lint:markdown` then `yarn lint:spellcheck` | Scripts glob `docs/**` only (CI docs job). OKF-only diffs skip these. Gotchas below. |
+
+**Docs lint gotchas** (`docs/**` only):
+
+- **Markdown tables:** `yarn lint:markdown` runs Prettier `--check` (exact column padding). No `lint:markdown:fix`; no allowlisted formatter for this tree ([agent command policy](agent-command-policy.md)). Wide tables: prefix `{/* prettier-ignore */}`, compact single-space cells — see `docs/migrating-to-v26.mdx`.
+- **Spellcheck frontmatter:** `spellchecker-cli` exits **0** when frontmatter fails to parse (`Failed to parse YAML frontmatter, ignoring it`) and skips checking that page's frontmatter. `yarn lint:spellcheck` runs it through `scripts/spellcheck.mjs`, which streams the output through unchanged and turns that case into exit **1** with a fix hint. Unquoted colons in values (e.g. `description: v27: Imagen API removal`) are the common trigger — quote the value. Keep that wrapper in place if the script is ever rewritten; a bare `spellchecker` invocation restores the silent pass.
 
 A JS-only (or docs-only) diff does **not** require full `yarn lint`. Full `yarn lint` is the CI equivalent when the diff spans those package trees **and** mutating `lint:android` is allowed (`implementation`).
 
@@ -145,6 +162,10 @@ Frozen review is [report/check-only except revert `.only`](change-authoring-work
 ## Expo documented-path iOS link (not e2e)
 
 Workspace fixture `test-expo/`: **`yarn test-expo:ios:link`** only — [agent command policy](agent-command-policy.md). Not Detox; do not add `yarn tests:ios:*` or ad-hoc `expo prebuild` / `xcodebuild` as that closer. App package: [packages/app](../packages/app/index.md).
+
+## RN CLI prebuilt RNCore iOS compile (not e2e)
+
+Workspace fixture `test-rn-bare/`: **`yarn test-rn-bare:ios:build`** only — [agent command policy](agent-command-policy.md). Not Detox; not the Expo link closer; do not add `yarn tests:ios:*` or ad-hoc `pod` / `xcodebuild` as that closer. App package: [packages/app](../packages/app/index.md).
 
 ## E2e with coverage
 
@@ -172,15 +193,21 @@ Goal: each iteration improves OKF and removes conflicting guidance. Check meanin
 | prepare                   | yarn lerna:prepare                   | 0    | —                                                                                                                                            |
 | jest                      | yarn tests:jest <paths>              | 0    | N/N tests                                                                                                                                    |
 | ios Ruby unit             | yarn tests:ios:ruby                  | 0    | when `packages/app/**/*.rb` or `packages/app/__tests__/*_test.rb` touched — coverage/ios-ruby/lcov.info ([§ iOS Ruby](#ios-ruby-unit-tests)) |
-| android JVM unit          | yarn tests:android:unit              | 0    | when `packages/*/android/**` Java changed — [AndroidTest-AD-1](android-architecture-decisions.md)                                            |
+| android JVM unit          | yarn tests:android:unit              | 0    | when `packages/*/android/**` Java changed — [AndroidTest-AD-1](android-architecture-decisions.md#androidtest-ad-1)                           |
+| ios XCTest unit           | yarn tests:ios:unit                  | 0    | when `packages/*/ios/**` ObjC/C++ or `*UnitTests.xcodeproj` changed — [IosTest-AD-1](ios-architecture-decisions.md#iostest-ad-1)              |
 | e2e macOS                 | yarn tests:macos:test-cover          | 0    | X passing — /tmp/...log                                                                                                                      |
 | e2e iOS                   | yarn tests:ios:test-cover            | 0    | Y passing — /tmp/...log                                                                                                                      |
 | e2e Android               | yarn tests:android:test-cover        | 0    | Z passing — /tmp/...log                                                                                                                      |
 | android merged Jacoco     | yarn tests:android:post-e2e-coverage | 0    | jacocoTestReport.xml (unit + e2e) — [coverage design](coverage-design.md)                                                                    |
 | compare:types             | yarn compare:types                   | 0    | <pkg> 0/0/0                                                                                                                                  |
 | lint (by-tree)            | [§ lint and formatting](#lint-and-formatting) | 0    | matching scripts; frozen review: check-only (no `lint:android` / full `yarn lint`)                                                            |
-| coverage                  | post-process + region table          | —    | see coverage-design § evidence package                                                                                                       |
+| lint:deps (lib diff)      | yarn lint:deps                       | 0    | when `packages/*/lib/**` in diff — [dependency-cycle linting](../monorepo-tooling/prepare-and-cache.md#dependency-cycle-linting)             |
+| lint:markdown (CI docs)   | yarn lint:markdown                   | 0    | when `docs/**` in diff                                                                                                                       |
+| lint:spellcheck (CI docs) | yarn lint:spellcheck                 | 0    | when `docs/**` in diff                                                                                                                       |
+| coverage                  | post-process + region table          | —    | [coverage evidence package](coverage-design.md#coverage-evidence-package); closes `coverage_evidence_gate` when lib/native bridge or `packages/app/**/*.rb` touched |
 ```
+
+Exit codes must be the **real** ones: the agent shell is zsh, where `${PIPESTATUS[0]}` silently expands to empty — [agent command policy § agent shell is zsh](agent-command-policy.md#agent-shell-is-zsh).
 
 **History rewrite invalidates** prior rows — re-run and replace the table after amend/rebase.
 
@@ -193,14 +220,15 @@ Goal: each iteration improves OKF and removes conflicting guidance. Check meanin
 - [ ] Redirect audit when TypeDoc config changed ([documentation site maintenance § redirect audit](../documentation-site-maintenance.md#redirect-audit-required-when-typedoc-config-changes))
 - [ ] `yarn tests:jest`
 - [ ] `yarn tests:ios:ruby` when `packages/app/**/*.rb` or `packages/app/__tests__/*_test.rb` touched ([§ iOS Ruby](#ios-ruby-unit-tests); [coverage design](coverage-design.md#ios-ruby-simplecov))
-- [ ] `yarn tests:android:unit` when `packages/*/android/**` Java / `src/test/java` changed ([AndroidTest-AD-1](android-architecture-decisions.md))
+- [ ] `yarn tests:android:unit` when `packages/*/android/**` Java / `src/test/java` changed ([AndroidTest-AD-1](android-architecture-decisions.md#androidtest-ad-1))
+- [ ] `yarn tests:ios:unit` when `packages/*/ios/**` ObjC/C++ or `packages/*/ios/*UnitTests` changed ([IosTest-AD-1](ios-architecture-decisions.md#iostest-ad-1))
 - [ ] TurboModule wrapper contract ([NewArch-AD-17.1](../new-architecture/architecture-decisions.md#newarch-ad-171--jest-turbomodule-contract-test--accepted)) when `packages/app/lib/internal/registry/nativeModule.ts`, `nativeModuleAndroidIos.ts`, or TurboModule wrapper behavior changed: `yarn tests:jest -- packages/app/__tests__/nativeModuleContract.test.ts`
 - [ ] `yarn compare:types` (stale config entries removed)
 - [ ] Lint by-tree / by-diff per [§ lint and formatting](#lint-and-formatting) (frozen `independent-review`: check-only — no `yarn lint:android` / full `yarn lint`)
 - [ ] E2e green on **every required platform** for the changed module ([platform coverage gate](running-e2e.md#platform-coverage-gate-blocking); [harness narrowing gate](running-e2e.md#harness-narrowing-gate-blocking); no `.only`; committed `RNFBDebug` remains `false`)
 - [ ] Android post-e2e merged Jacoco when Android native touched: `yarn tests:android:post-e2e-coverage` → `jacocoTestReport.xml` ([coverage design](coverage-design.md))
 - [ ] [Validation evidence package](validation-checklist.md#validation-evidence-package) recorded (exit codes, e2e counts, log paths)
-- [ ] [Coverage evidence package](coverage-design.md#coverage-evidence-package) when lib/native bridge **or** `packages/app/**/*.rb` touched — gaps investigated to fix, delete, or acceptable-exception bar
+- [ ] [Coverage evidence package](coverage-design.md#coverage-evidence-package) when lib/native bridge **or** `packages/app/**/*.rb` touched — `coverage_evidence_gate` closed with verdict line; gaps investigated to fix, delete, or acceptable-exception bar
 - [ ] Durable OKF / `AGENTS.md` / `CONTRIBUTING.md` promoted in `documentation` **before** frozen review; [OKF bundle scan](#okf-bundle-review) completed in `independent-review` when those files changed (contract findings → `documentation?` then re-scan, not `commit`-pass edits)
 
 Package workflows may add items (e.g. pipeline before/after snapshots — [pipeline workflow](../packages/firestore/pipeline-implementation-workflow.md)).

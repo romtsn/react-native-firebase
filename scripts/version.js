@@ -185,6 +185,16 @@ packages.forEach(package => {
 syncTestAppVersions(`tests${sep}package.json`);
 syncTestAppVersions(`tests-macos${sep}package.json`);
 syncTestAppVersions(`test-expo${sep}package.json`);
+syncTestAppVersions(`test-rn-bare${sep}package.json`);
+// test-expo and test-rn-bare are Yarn workspaces but not lerna packages, so
+// their package.json files are not auto-staged by `lerna version`. Stage all
+// synced manifests explicitly (same pattern as POD_LOCKFILE_PATHS below) so
+// publish does not leave a dirty tree. test-rn-bare is not in the Darwin
+// `pod install` loop; its Podfile.lock is not checked in.
+execSync(
+  `git add -- tests${sep}package.json tests-macos${sep}package.json test-expo${sep}package.json test-rn-bare${sep}package.json`,
+  { stdio: 'inherit' },
+);
 
 // Darwin-only: refresh CocoaPods lockfiles during `lerna version` so the release
 // commit includes them. Publish CI is macos-26 so this path runs there; Linux

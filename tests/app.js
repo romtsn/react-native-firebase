@@ -274,25 +274,17 @@ function loadTests(_) {
         return;
       }
 
-      const { NativeModules } = require('react-native');
-      const coverageModule = NativeModules.RNFBTestingCoverage;
-      if (coverageModule?.flush) {
-        console.log(`[native-coverage] flushing ${Platform.OS} coverage from Jet after hook`);
-        try {
-          await coverageModule.flush();
-        } catch (error) {
-          if (error?.code === 'coverage_not_enabled') {
-            console.warn(
-              `[native-coverage] ${Platform.OS} coverage not enabled in this build; skipping flush`,
-            );
-          } else {
-            console.error(`[native-coverage] failed to flush ${Platform.OS} coverage:`, error);
-          }
-        }
-      } else {
-        console.warn(
-          '[native-coverage] RNFBTestingCoverage native module not available; skipping flush',
-        );
+      const coverageConfig = require('./coverage-runtime-config');
+      if (!coverageConfig.enabled) {
+        return;
+      }
+
+      try {
+        const { flush } = require('react-native-coverage');
+        console.log(`[native-coverage] flushing ${Platform.OS} coverage via react-native-coverage`);
+        flush();
+      } catch (error) {
+        console.error(`[native-coverage] failed to flush ${Platform.OS} coverage:`, error);
       }
     });
   });

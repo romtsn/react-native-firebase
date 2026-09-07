@@ -1,16 +1,29 @@
+#!/usr/bin/env node
+/**
+ * Android / iOS coverage pull orchestration for RNFB tests.
+ *
+ * Android pull + post-e2e use `rn-coverage` CLI with RNFB artifact paths.
+ * iOS pull (Jet close) still copies profraw into
+ * tests/ios/build/output/coverage for the package export step.
+ */
+'use strict';
+
 const { execSync, spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { loadCoverageConfig, resolveStrict } = require('./load-coverage-config');
+const { runRnCoverage } = require('./resolve-rn-coverage');
 
-// Android applicationId stays com.invertase.testing; iOS PRODUCT_BUNDLE_IDENTIFIER is io.invertase.testing.
-const ANDROID_TEST_APP_PACKAGE = 'com.invertase.testing';
-const IOS_TEST_APP_BUNDLE_ID = 'io.invertase.testing';
-const ANDROID_COVERAGE_RELATIVE_PATH = 'files/coverage.ec';
+const coverageConfig = loadCoverageConfig();
+const repoRoot = path.resolve(__dirname, '../..');
+const testsDir = path.join(repoRoot, 'tests');
+const ANDROID_TEST_APP_PACKAGE = coverageConfig.app.androidApplicationId;
+const IOS_TEST_APP_BUNDLE_ID = coverageConfig.app.iosBundleId;
+const ANDROID_COVERAGE_RELATIVE_PATH = coverageConfig.android.coverageRelativePath;
+const ANDROID_DETOX_STAGING_PATH = coverageConfig.android.detoxStagingPath;
 
 function getAdbBinary() {
-  return process.env.ANDROID_HOME
-    ? `${process.env.ANDROID_HOME}/platform-tools/adb`
-    : 'adb';
+  return process.env.ANDROID_HOME ? `${process.env.ANDROID_HOME}/platform-tools/adb` : 'adb';
 }
 
 function resolveAndroidDeviceId(preferredDeviceId) {
@@ -54,7 +67,7 @@ function androidCoverageFileExists(deviceId) {
 
 function pullAndroidCoverage(deviceId, options = {}) {
   const { softFail = false, testsDir = path.resolve(__dirname, '..') } = options;
-  const emuDest = '/data/local/tmp/detox/coverage.ec';
+  const emuDest = ANDROID_DETOX_STAGING_PATH;
   const localDestDir = path.join(testsDir, 'android/app/build/output/coverage');
   const localDestFile = path.join(localDestDir, 'emulator_coverage.ec');
   const adb = getAdbBinary();
@@ -147,8 +160,6 @@ function pullIosCoverage(deviceId, options = {}) {
   return destPaths;
 }
 
-// Merged unit (*.exec) + e2e (*.ec) report — Codecov android-native uploads this XML.
-// See tests/android/app/jacoco.gradle (jacocoTestReport) and okf-bundle/testing/coverage-design.md.
 function runJacocoTestReport() {
   const androidDir = path.resolve(__dirname, '../android');
   const result = spawnSync('./gradlew', ['jacocoTestReport'], {
@@ -176,52 +187,143 @@ function deleteProcessedAndroidCoverageEc(ecFilePath) {
   console.log(`[native-coverage] Removed processed coverage.ec: ${ecFilePath}`);
 }
 
+function isCoverageStrict(args = []) {
+  return resolveStrict(args, coverageConfig);
+}
+
+function pullJsCoverage(platform, deviceId) {
+  const outputDir = path.join(repoRoot, 'coverage/js', platform);
+  const args = ['js', 'pull', '--platform', platform, '--output', outputDir];
+  if (platform === 'ios') {
+    args.push('--device', deviceId);
+  } else if (deviceId) {
+    args.push('--device', deviceId);
+  }
+
+  const { status } = runRnCoverage(args);
+  if (status !== 0) {
+    throw new Error(`rn-coverage js pull failed for ${platform} (exit ${status ?? 'unknown'})`);
+  }
+}
+
+function reportJsCoverage(platform) {
+  const outputDir = path.join(repoRoot, 'coverage/js', platform);
+  // cwd must be tests/ so rn-coverage can resolve tests/node_modules/nyc;
+  // tests/nyc.config.js sets cwd:'..' for monorepo include globs.
+  const { status } = runRnCoverage([
+    'js',
+    'report',
+    '--input',
+    path.join(outputDir, 'coverage-final.json'),
+    '--output',
+    outputDir,
+    '--cwd',
+    testsDir,
+    '--nyc-config',
+    path.join(testsDir, 'nyc.config.js'),
+  ]);
+  if (status !== 0) {
+    throw new Error(`rn-coverage js report failed for ${platform} (exit ${status ?? 'unknown'})`);
+  }
+}
+
 async function main() {
   const args = process.argv.slice(2);
-
-  if (args.includes('--android-pull')) {
-    const deviceId = resolveAndroidDeviceId();
-    console.log(`[native-coverage] Pulling Android coverage from ${deviceId}`);
-    await pullAndroidCoverageWithRetry(deviceId, { softFail: true });
+  const strict = isCoverageStrict(args);
+  if (!coverageConfig.enabled) {
+    console.warn('[native-coverage] disabled via tests/react-native-coverage.config.js');
     return;
   }
 
-  if (args.includes('--android-post-e2e')) {
-    const deviceId = resolveAndroidDeviceId();
-    const testsDir = path.resolve(__dirname, '..');
-    const localDestFile = path.join(
-      testsDir,
-      'android/app/build/output/coverage/emulator_coverage.ec',
+  const localDestDir = path.join(testsDir, 'android/app/build/output/coverage');
+  const localDestFile = path.join(localDestDir, 'emulator_coverage.ec');
+  const deviceId = resolveAndroidDeviceId();
+
+  if (args.includes('--android-pull')) {
+    console.log(`[native-coverage] Pulling Android coverage from ${deviceId} via rn-coverage`);
+    const { status } = runRnCoverage(
+      strict
+        ? ['--strict', 'android', 'pull', '--device', deviceId, '--output', localDestDir]
+        : ['--no-strict', 'android', 'pull', '--device', deviceId, '--output', localDestDir],
     );
-    console.log(`[native-coverage] Post-e2e Android coverage on ${deviceId}`);
+    process.exit(status == null ? 1 : status);
+  }
+
+  if (args.includes('--android-post-e2e')) {
+    console.log(
+      `[native-coverage] Post-e2e Android coverage on ${deviceId} via rn-coverage (strict=${strict})`,
+    );
     let pulled = null;
     if (fs.existsSync(localDestFile)) {
       console.log(`[native-coverage] Using existing ${localDestFile} from Jet-close pull`);
       pulled = localDestFile;
     } else {
-      pulled = await pullAndroidCoverageWithRetry(deviceId, { softFail: true, testsDir });
+      const pullResult = runRnCoverage([
+        strict ? '--strict' : '--no-strict',
+        'android',
+        'pull',
+        '--device',
+        deviceId,
+        '--output',
+        localDestDir,
+      ]);
+      if (pullResult.status === 0 && fs.existsSync(localDestFile)) {
+        pulled = localDestFile;
+      } else if (pullResult.status === 2 && strict) {
+        process.exit(2);
+      }
     }
-    const reportOk = runJacocoTestReport();
+
+    const reportResult = runRnCoverage([
+      strict ? '--strict' : '--no-strict',
+      'android',
+      'report',
+      '--android-dir',
+      path.join(testsDir, 'android'),
+      '--jacoco-xml',
+      path.resolve(path.resolve(__dirname, '../..'), coverageConfig.android.jacocoReportXml),
+    ]);
+
+    if (reportResult.status !== 0) {
+      process.exit(reportResult.status == null ? 1 : reportResult.status);
+    }
+
     if (!pulled) {
-      console.warn(
-        '[native-coverage] Merged Jacoco report may lack e2e data (no coverage.ec pulled)',
-      );
-    } else if (reportOk) {
+      const message = 'Merged Jacoco report lacks e2e data (no coverage.ec pulled)';
+      if (strict) {
+        console.error(`[native-coverage] ${message}`);
+        process.exit(2);
+      }
+      console.warn(`[native-coverage] ${message}`);
+    } else {
       deleteProcessedAndroidCoverageEc(pulled);
     }
+
+    // Explicit presence assert via package CLI (belt-and-suspenders with report assert).
+    const assertResult = runRnCoverage([
+      strict ? '--strict' : '--no-strict',
+      'assert',
+      '--platform',
+      'android',
+    ]);
+    if (assertResult.status !== 0) {
+      process.exit(assertResult.status == null ? 1 : assertResult.status);
+    }
+
+    reportJsCoverage('android');
     return;
   }
 
   console.error(
-    'Usage: node tests/scripts/pull-native-coverage.js --android-pull|--android-post-e2e',
+    'Usage: node tests/scripts/pull-native-coverage.js --android-pull|--android-post-e2e [--strict|--no-strict]',
   );
   process.exit(1);
 }
 
 if (require.main === module) {
   main().catch(error => {
-    console.warn(`[native-coverage] ${error.message}`);
-    process.exit(0);
+    console.error(`[native-coverage] ${error.message}`);
+    process.exit(1);
   });
 }
 
@@ -229,6 +331,8 @@ module.exports = {
   pullAndroidCoverage,
   pullAndroidCoverageWithRetry,
   pullIosCoverage,
+  pullJsCoverage,
+  reportJsCoverage,
   resolveAndroidDeviceId,
   runJacocoTestReport,
 };

@@ -22,7 +22,6 @@ import static io.invertase.firebase.firestore.UniversalFirebaseFirestoreCommon.g
 import static io.invertase.firebase.firestore.UniversalFirebaseFirestoreCommon.instanceCache;
 
 import android.content.Context;
-import android.util.SparseArray;
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.WritableMap;
 import com.google.android.gms.tasks.Task;
@@ -39,7 +38,8 @@ import java.util.Map;
 import java.util.Objects;
 
 public class UniversalFirebaseFirestoreModule extends UniversalFirebaseModule {
-  private static SparseArray<ListenerRegistration> onSnapshotInSyncListeners = new SparseArray<>();
+  private static final RNFBFirestoreListenerRegistry onSnapshotInSyncListeners =
+      new RNFBFirestoreListenerRegistry();
 
   private static HashMap<String, String> emulatorConfigs = new HashMap<>();
 
@@ -65,15 +65,15 @@ public class UniversalFirebaseFirestoreModule extends UniversalFirebaseModule {
                       listenerId));
             });
 
-    onSnapshotInSyncListeners.put(listenerId, listenerRegistration);
+    onSnapshotInSyncListeners.putOrDiscard(listenerId, listenerRegistration);
   }
 
   void removeSnapshotsInSync(String appName, String databaseId, int listenerId) {
-    ListenerRegistration listenerRegistration = onSnapshotInSyncListeners.get(listenerId);
-    if (listenerRegistration != null) {
-      listenerRegistration.remove();
-      onSnapshotInSyncListeners.remove(listenerId);
-    }
+    onSnapshotInSyncListeners.takeAndRemove(listenerId);
+  }
+
+  void invalidateSnapshotsInSync() {
+    onSnapshotInSyncListeners.takeAllAndRemove();
   }
 
   Task<Void> disableNetwork(String appName, String databaseId) {
@@ -85,16 +85,12 @@ public class UniversalFirebaseFirestoreModule extends UniversalFirebaseModule {
   }
 
   Task<Void> useEmulator(String appName, String databaseId, String host, int port) {
-    return Tasks.call(
-        getExecutor(),
-        () -> {
-          String firestoreKey = createFirestoreKey(appName, databaseId);
-          if (emulatorConfigs.get(firestoreKey) == null) {
-            emulatorConfigs.put(firestoreKey, "true");
-            getFirestoreForApp(appName, databaseId).useEmulator(host, port);
-          }
-          return null;
-        });
+    String firestoreKey = createFirestoreKey(appName, databaseId);
+    if (emulatorConfigs.get(firestoreKey) == null) {
+      emulatorConfigs.put(firestoreKey, "true");
+      getFirestoreForApp(appName, databaseId).useEmulator(host, port);
+    }
+    return Tasks.forResult(null);
   }
 
   Task<Void> settings(String firestoreKey, Map<String, Object> settings) {
@@ -165,11 +161,24 @@ public class UniversalFirebaseFirestoreModule extends UniversalFirebaseModule {
   Task<Void> terminate(String appName, String databaseId) {
     FirebaseFirestore firebaseFirestore = getFirestoreForApp(appName, databaseId);
     String firestoreKey = createFirestoreKey(appName, databaseId);
-    if (instanceCache.get(firestoreKey) != null) {
-      instanceCache.get(firestoreKey).clear();
-      instanceCache.remove(firestoreKey);
-    }
 
-    return firebaseFirestore.terminate();
+    // Evict only after terminate completes (mirrors iOS). Clearing instanceCache /
+    // emulatorConfigs beforehand lets a concurrent getFirestoreForApp rebuild a
+    // non-emulator client while shutdown is in flight.
+    return firebaseFirestore
+        .terminate()
+        .continueWith(
+            getExecutor(),
+            task -> {
+              // Propagate failure without evicting (mirrors iOS success-only path).
+              // getResult() throws when terminate failed; do not clear caches first.
+              Void result = task.getResult();
+              if (instanceCache.get(firestoreKey) != null) {
+                instanceCache.get(firestoreKey).clear();
+                instanceCache.remove(firestoreKey);
+              }
+              emulatorConfigs.remove(firestoreKey);
+              return result;
+            });
   }
 }

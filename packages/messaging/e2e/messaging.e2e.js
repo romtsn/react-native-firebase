@@ -48,6 +48,73 @@ async function isAPNSCapableSimulator() {
 }
 
 describe('messaging()', function () {
+  it('completes non-FCM remote notifications on iOS', async function () {
+    if (!Platform.ios) {
+      this.skip();
+    }
+
+    const { getRNFBTesting } = require('../../app/e2e/helpers');
+    const completed = await getRNFBTesting().completesNonFCMRemoteNotification();
+
+    completed.should.equal(true);
+  });
+
+  it('serializes string notification sounds under the iOS notification details', async function () {
+    if (!Platform.ios) {
+      this.skip();
+    }
+
+    const { getRNFBTesting } = require('../../app/e2e/helpers');
+    const message = await getRNFBTesting().serializeMessagingUserInfo({
+      aps: { sound: 'tone.aiff' },
+    });
+
+    message.notification.should.eql({ ios: { sound: 'tone.aiff' } });
+  });
+
+  it('serializes iOS sent times as epoch milliseconds', async function () {
+    if (!Platform.ios) {
+      this.skip();
+    }
+
+    const { getRNFBTesting } = require('../../app/e2e/helpers');
+    for (const timestamp of ['1522880044', 1522880044]) {
+      const message = await getRNFBTesting().serializeMessagingUserInfo({
+        'google.c.a.ts': timestamp,
+      });
+
+      message.sentTime.should.equal(1522880044000);
+    }
+  });
+
+  it('ignores malformed iOS sent times', async function () {
+    if (!Platform.ios) {
+      this.skip();
+    }
+
+    const { getRNFBTesting } = require('../../app/e2e/helpers');
+    for (const timestamp of ['', '-1', '1.5', '1522880044invalid']) {
+      const message = await getRNFBTesting().serializeMessagingUserInfo({
+        'google.c.a.ts': timestamp,
+      });
+
+      message.should.not.have.property('sentTime');
+    }
+  });
+
+  it('serializes iOS notification badges as strings', async function () {
+    if (!Platform.ios) {
+      this.skip();
+    }
+
+    const { getRNFBTesting } = require('../../app/e2e/helpers');
+    const message = await getRNFBTesting().serializeMessagingUserInfo({
+      aps: { badge: 7 },
+    });
+
+    message.notification.ios.badge.should.equal('7');
+  });
+
   before(async function () {
     // our device registration tests require permissions. Set them up
     const { getMessaging, requestPermission } = messagingModular;
@@ -252,6 +319,20 @@ describe('messaging()', function () {
         }
       });
 
+      it('requires a non-empty, even-length hexadecimal token on Apple platforms', function () {
+        const { getMessaging, setAPNSToken } = messagingModular;
+        if (!Platform.ios && !Platform.macos) {
+          this.skip();
+        }
+
+        for (const token of ['', '0', 'xyz', '001z']) {
+          (() => setAPNSToken(getMessaging(), token)).should.throw(
+            Error,
+            /'token' expected a non-empty, even-length hexadecimal string/,
+          );
+        }
+      });
+
       it('resolves on android', async function () {
         const { getMessaging, setAPNSToken } = messagingModular;
         if (Platform.android) {
@@ -285,6 +366,31 @@ describe('messaging()', function () {
       it('returns null when no initial notification', async function () {
         const { getMessaging, getInitialNotification } = messagingModular;
         should.strictEqual(await getInitialNotification(getMessaging()), null);
+      });
+    });
+
+    describe('native messaging delegate', function () {
+      it('preserves an existing iOS Firebase Messaging delegate', async function () {
+        if (!Platform.ios) {
+          this.skip();
+        }
+
+        const { NativeModules } = require('react-native');
+        should.equal(
+          await NativeModules.RNFBTestingMessaging.messagingPreservesExistingDelegate(),
+          true,
+        );
+      });
+    });
+
+    describe('notification storage', function () {
+      it('can be disabled on android', async function () {
+        if (!Platform.android) {
+          this.skip();
+        }
+
+        const { getRNFBTesting } = require('../../app/e2e/helpers');
+        should.equal(await getRNFBTesting().messagingStoreSupportsDisabledStorage(), true);
       });
     });
 
@@ -394,6 +500,24 @@ describe('messaging()', function () {
           e.message.should.containEql("'listener' expected a function");
           return Promise.resolve();
         }
+      });
+
+      it('passes the sent message ID to the listener', async function () {
+        if (!Platform.android) {
+          this.skip();
+        }
+
+        const { getMessaging, onMessageSent } = messagingModular;
+        const spy = sinon.spy();
+        const unsubscribe = onMessageSent(getMessaging(), spy);
+
+        await NativeModules.NativeRNFBTurboApp.eventsPing('messaging_message_sent', {
+          messageId: 'message-id',
+        });
+        await Utils.spyToBeCalledOnceAsync(spy);
+
+        spy.firstCall.args[0].should.equal('message-id');
+        unsubscribe();
       });
     });
 
@@ -526,7 +650,7 @@ describe('messaging()', function () {
 
         should.equal(isNotificationDelegationEnabled(getMessaging()), false);
         await setNotificationDelegationEnabled(getMessaging(), true);
-        should.equal(isNotificationDelegationEnabled(getMessaging()), true);
+        should.equal(isNotificationDelegationEnabled(getMessaging()), Platform.android);
       });
     });
 

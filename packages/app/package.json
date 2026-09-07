@@ -1,6 +1,6 @@
 {
   "name": "@react-native-firebase/app",
-  "version": "26.3.2",
+  "version": "26.4.0",
   "author": "Invertase <oss@invertase.io> (http://invertase.io)",
   "description": "A well tested, feature rich Firebase implementation for React Native, supporting iOS & Android. Individual module support for Admob, Analytics, Auth, Crash Reporting, Cloud Firestore, Database, Dynamic Links, Functions, Messaging (FCM), Remote Config, Storage and more.",
   "main": "./dist/module/index.js",
@@ -32,6 +32,7 @@
     "compile": "bob build",
     "prepare": "npm run build && npm run build:plugin && npm run compile"
   },
+  "homepage": "https://rnfirebase.io",
   "repository": {
     "type": "git",
     "url": "https://github.com/invertase/react-native-firebase",
@@ -113,7 +114,7 @@
     "react-native": "*"
   },
   "dependencies": {
-    "firebase": "12.17.1"
+    "firebase": "12.18.0"
   },
   "devDependencies": {
     "expo": "^55.0.18",

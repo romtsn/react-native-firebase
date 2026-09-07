@@ -14,6 +14,7 @@
  * limitations under the License.
  *
  */
+const { getE2eEmulatorHost, getE2eEmulatorPort } = require('../../app/e2e/helpers');
 const COLLECTION = 'firestore';
 const COLLECTION_GROUP = 'collectionGroup';
 
@@ -175,6 +176,47 @@ describe('firestore()', function () {
         } catch (error) {
           error.code.should.equal('firestore/unavailable');
           return Promise.resolve();
+        }
+      });
+
+      // Regression for invertase/react-native-firebase#9280 — iOS terminate must evict
+      // instanceCache using native FIRApp.name so a later getFirestore() is a fresh client.
+      // Uses second-rnfb so the default suite instance stays intact. Path must be the
+      // second-database collection (allowed by that DB's rules) — not firestore/.
+      //
+      // Suite-level this.retries(4) must not re-run this case after terminate cleared
+      // emulatorConfigs: a retry without reconnect talks to production and fails with
+      // permission-denied on second-database/. Always reconnect in finally.
+      it('terminate then subsequent getDoc uses a fresh instance', async function () {
+        this.retries(0);
+        if (Platform.other) {
+          return;
+        }
+
+        const { getApp } = modular;
+        const { getFirestore, getDoc, terminate, doc, setDoc, connectFirestoreEmulator } =
+          firestoreModular;
+        const emuHost = getE2eEmulatorHost();
+        const emuPort = getE2eEmulatorPort('firestore');
+        const connect = db => connectFirestoreEmulator(db, emuHost, emuPort);
+        const probePath = 'second-database/terminate-reuse-probe';
+
+        try {
+          const db = getFirestore(getApp(), 'second-rnfb');
+          // Idempotent if suite before() already connected; required after a prior terminate.
+          connect(db);
+          await setDoc(doc(db, probePath), { ok: true });
+
+          await terminate(db);
+
+          // Must not SIGABRT / FIRIllegalStateException from a cached terminated client.
+          const fresh = getFirestore(getApp(), 'second-rnfb');
+          connect(fresh);
+          const snap = await getDoc(doc(fresh, probePath));
+          should(snap.exists()).equal(true);
+        } finally {
+          // Restore suite emulator wiring for later Second Database / firestore cases.
+          connect(getFirestore(getApp(), 'second-rnfb'));
         }
       });
     });

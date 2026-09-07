@@ -16,6 +16,30 @@ jest.mock('../lib/internal/web/firebaseApp', () => ({
 
 const appModule = require('../lib/internal/web/RNFBAppModule.ts').default;
 
+describe('RNFBAppModule Promise contracts', () => {
+  it('matches native async configuration and event methods', async () => {
+    await expect(appModule.metaGetAll()).resolves.toEqual({});
+    await expect(appModule.jsonGetAll()).resolves.toEqual({});
+
+    await expect(
+      appModule.preferencesSetString('promise-contract', 'value'),
+    ).resolves.toBeUndefined();
+    await expect(appModule.preferencesGetAll()).resolves.toMatchObject({
+      'promise-contract': 'value',
+    });
+    await expect(appModule.preferencesClearAll()).resolves.toBeUndefined();
+
+    await expect(appModule.eventsGetListeners()).resolves.toMatchObject({
+      listeners: expect.any(Number),
+      queued: expect.any(Number),
+      events: expect.any(Object),
+    });
+    await expect(appModule.eventsPing('promise_contract_event', { value: true })).resolves.toEqual({
+      value: true,
+    });
+  });
+});
+
 describe('RNFBAppModule setImmediate guards', () => {
   describe('with setImmediate available', () => {
     beforeEach(() => {
@@ -87,5 +111,36 @@ describe('RNFBAppModule setImmediate guards', () => {
       expect(spy).toHaveBeenCalled();
       spy.mockRestore();
     });
+  });
+});
+
+describe('RNFBAppModule arbitrary keys', () => {
+  it('tracks event names that collide with Object prototype properties', async () => {
+    appModule.eventsAddListener('hasOwnProperty');
+    appModule.eventsAddListener('hasOwnProperty');
+    appModule.eventsAddListener('__proto__');
+
+    const events = (await appModule.eventsGetListeners()).events;
+    expect(events.hasOwnProperty).toBe(2);
+    expect(events['__proto__']).toBe(1);
+
+    appModule.eventsRemoveListener('hasOwnProperty', true);
+    appModule.eventsRemoveListener('__proto__', true);
+  });
+
+  it('does not expose the internal listener map', async () => {
+    const events = (await appModule.eventsGetListeners()).events;
+    events.externalMutation = 1;
+
+    expect((await appModule.eventsGetListeners()).events.externalMutation).toBeUndefined();
+  });
+
+  it('stores preference keys that collide with Object prototype properties', async () => {
+    await appModule.preferencesSetString('hasOwnProperty', 'method');
+    await appModule.preferencesSetString('__proto__', 'prototype');
+
+    const preferences = await appModule.preferencesGetAll();
+    expect(preferences.hasOwnProperty).toBe('method');
+    expect(preferences['__proto__']).toBe('prototype');
   });
 });

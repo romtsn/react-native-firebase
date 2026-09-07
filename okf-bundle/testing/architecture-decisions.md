@@ -10,7 +10,7 @@ timestamp: 2026-07-10T00:00:00Z
 
 **Canonical owner** of durable decisions for how RNFB validates published package types in CI. Procedure and commands: [validation checklist](validation-checklist.md). Implementation: `.attw.json`, `.github/scripts/attw/`, `tsconfig.consumer.json`.
 
-**Related (separate owner):** Android JVM unit testing — [android-architecture-decisions.md](android-architecture-decisions.md) (`AndroidTest-AD-*`).
+**Related (separate owner):** Android JVM unit testing — [AndroidTest-AD-1](android-architecture-decisions.md#androidtest-ad-1). iOS XCTest — [IosTest-AD-1](ios-architecture-decisions.md#iostest-ad-1).
 
 **Policy:** [OKF documentation policy](../documentation-policy.md). Do not duplicate these decisions in work queues.
 
@@ -115,3 +115,17 @@ Expo config plugins are **not** validated by discarding `app.plugin.js` from att
 Fixing all 185 `strict` findings is **not** a merge requirement unless Types-AD-2 is revised.
 
 Future improvement (Proposed): emit `.d.ts` with `.js` extension suffixes in relative imports to clear Node16 `InternalResolutionError` without ignoring the rule — only if we expand supported consumers beyond `bundler`.
+
+---
+
+<a id="types-ad-5--pack-ignores-nested-ios-unit-build-trees--accepted"></a>
+
+## Types-AD-5 — Pack ignores nested iOS unit-test build trees — **Accepted**
+
+`yarn attw:check` packs each published package (`yarn pack`). A package `.npmignore` line of **`ios/build` does not** ignore `ios/RNFB*UnitTests/build/` (in-package XCTest derived data, including xcresult trees). Those trees are volatile and must not be walked by pack/attw.
+
+**Required ignore:** `ios/**/build` on package `.npmignore` files (in addition to `ios/build`).
+
+**Not** the required fix: adding a `package.json` `files` allowlist.
+
+`yarn attw:check` **may stay parallel** with `yarn tests:ios:unit` in `scripts/run-full-tests.sh`. The ignore pattern is what keeps pack safe; do not treat serializing those steps as the contract.

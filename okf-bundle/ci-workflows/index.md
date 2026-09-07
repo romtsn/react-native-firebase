@@ -4,13 +4,13 @@ GitHub Actions job shape, platform reliability, and artifact triage.
 
 ## Platforms
 
-* [iOS](ios.md) — simulator boot, logging, troubleshooting, [CI baseload policy](ios.md#ci-baseload-policy-instrumentation)
+* [iOS](ios.md) — XCTest unit (`yarn tests:ios:unit`), simulator boot, logging, troubleshooting, [CI baseload policy](ios.md#ci-baseload-policy-instrumentation)
 * [Android](android.md) — JVM unit step, idling, adb teardown, merged Jacoco / native coverage
 * [Other](other.md) — macOS e2e, Windows/shared
 
 ## Shared E2E dependencies
 
-* [Agent command policy](../testing/agent-command-policy.md) — allowlisted install/prepare/validation/e2e commands for agents; Expo documented-path iOS **link** is `yarn test-expo:ios:link` (not Detox)
+* [Agent command policy](../testing/agent-command-policy.md) — allowlisted install/prepare/validation/e2e commands for agents; Expo documented-path iOS **link** is `yarn test-expo:ios:link` (not Detox); RN CLI prebuilt RNCore iOS **build** is `yarn test-rn-bare:ios:build` (not Detox)
 * [Running e2e — agent rule](../testing/running-e2e.md#agent-rule-read-first) — e2e `yarn tests:*` detail; never invoke Jet/Detox/Metro directly
 * [Test-runner orchestration (log triage)](../testing/running-e2e.md#test-runner-host-orchestration-log-triage-only) — ports 8090/8091, defer-run launch gate markers
 * [Detox patches](detox-patches.md) — inventory, `ECOMPROMISED`, patch workflow
@@ -20,4 +20,4 @@ GitHub Actions job shape, platform reliability, and artifact triage.
 ## Related
 
 * [Running e2e tests](../testing/running-e2e.md) — local runbook; CI variants noted per platform
-* [Coverage design](../testing/coverage-design.md) — e2e coverage, Codecov flags/gates; [iOS Ruby SimpleCov](../testing/coverage-design.md#ios-ruby-simplecov) (`yarn tests:ios:ruby`, flag `ios-ruby` on `tests_e2e_ios.yml` only)
+* [Coverage design](../testing/coverage-design.md) — e2e coverage, Codecov flags/gates; [iOS XCTest](../testing/ios-architecture-decisions.md#iostest-ad-1) (`yarn tests:ios:unit`); [iOS Ruby SimpleCov](../testing/coverage-design.md#ios-ruby-simplecov) (`yarn tests:ios:ruby`, flag `ios-ruby` on `tests_e2e_ios.yml` only)

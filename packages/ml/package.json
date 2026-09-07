@@ -1,6 +1,6 @@
 {
   "name": "@react-native-firebase/ml",
-  "version": "26.3.2",
+  "version": "26.4.0",
   "author": "Invertase <oss@invertase.io> (http://invertase.io)",
   "description": "React Native Firebase - Firebase ML brings the power of machine learning vision to your React Native application, supporting both Android & iOS.",
   "main": "./dist/module/index.js",
@@ -28,6 +28,7 @@
     "android:codegen": "node ../../scripts/codegen-package.mjs ml android",
     "ios:codegen": "node ../../scripts/codegen-package.mjs ml ios"
   },
+  "homepage": "https://rnfirebase.io",
   "repository": {
     "type": "git",
     "url": "https://github.com/invertase/react-native-firebase",
@@ -45,14 +46,14 @@
     "image labeler"
   ],
   "peerDependencies": {
-    "@react-native-firebase/app": "26.3.2"
+    "@react-native-firebase/app": "26.4.0"
   },
   "publishConfig": {
     "access": "public",
     "provenance": true
   },
   "devDependencies": {
-    "@react-native-firebase/app": "26.3.2",
+    "@react-native-firebase/app": "26.4.0",
     "react-native-builder-bob": "^0.41.0"
   },
   "exports": {

@@ -19,7 +19,6 @@
 
 #import "RNFBMessagingModule.h"
 #import "RNFBAppCheckModule.h"
-#import "RNFBTestingCoverageProfile.h"
 #import <Firebase.h>
 
 #import <React/RCTBundleURLProvider.h>
@@ -27,6 +26,8 @@
 #import <React/RCTDefines.h>
 
 static NSString *const RNFBTestingMetroHost = @"127.0.0.1";
+static NSString *const RNFBTestingMessagingDelegateProbeKey =
+    @"rnfb_testing_messaging_delegate_called";
 static const NSTimeInterval RNFBTestingMetroProbeTimeoutSec = 10.0;
 
 static NSUInteger RNFBTestingMetroPortNumber(void)
@@ -213,6 +214,24 @@ static void RNFBTestingRegisterJavaScriptLoadObservers(id observer)
 }
 #endif
 
+@interface RNFBTestingMessagingDelegateProbe : NSObject <FIRMessagingDelegate>
+@end
+
+@implementation RNFBTestingMessagingDelegateProbe
+
+- (void)messaging:(FIRMessaging *)messaging didReceiveRegistrationToken:(NSString *)fcmToken
+{
+  [[NSUserDefaults standardUserDefaults] setBool:YES forKey:RNFBTestingMessagingDelegateProbeKey];
+}
+
+@end
+
+@interface AppDelegate ()
+
+@property(nonatomic, strong) RNFBTestingMessagingDelegateProbe *messagingDelegateProbe;
+
+@end
+
 @implementation AppDelegate
 - (void)rnfb_applicationLifecycleNotification:(NSNotification *)notification
 {
@@ -256,8 +275,6 @@ static void RNFBTestingRegisterJavaScriptLoadObservers(id observer)
   RNFBTestingScheduleLifecycleProbes();
   RNFBTestingLogLifecycle(@"didFinishLaunching+before");
 
-  RNFBTestingConfigureCoverageProfilePath();
-
   // Initialize RNFBAppCheckModule, it sets the custom RNFBAppCheckProviderFactory
   // which lets us configure any of the available native platform providers,
   // and reconfigure if needed, dynamically after `[FIRApp configure]` just like the other platforms.
@@ -274,6 +291,8 @@ static void RNFBTestingRegisterJavaScriptLoadObservers(id observer)
     [FIRApp configure];
   }
   [FIRApp configureWithName:@"secondaryFromNative" options:[FIROptions defaultOptions]];
+  self.messagingDelegateProbe = [[RNFBTestingMessagingDelegateProbe alloc] init];
+  [FIRMessaging messaging].delegate = self.messagingDelegateProbe;
 
   self.moduleName = @"testing";
   // You can add your custom initial props in the dictionary below.

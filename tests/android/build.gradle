@@ -2,7 +2,11 @@ buildscript {
   ext.buildToolsVersion = "36.1.0"
   ext.minSdkVersion = 24
   ext.compileSdkVersion = 36
-  ext.targetSdkVersion = 36
+  // Test *app* targetSdk only. Do not set rootProject.ext.targetSdkVersion —
+  // invertase applyAndroidVersions() copies it onto RNFB libraries, and
+  // Robolectric 4.14.1 DefaultSdkPicker then rejects package targetSdk 36
+  // (maxSdk 35). Libraries keep packages/*/package.json (app: 34). AndroidTest-AD-1.
+  ext.appTargetSdkVersion = 36
 
  ext.ndkVersion = "27.1.12297006"
 
@@ -42,9 +46,35 @@ buildscript {
   }
 }
 
+// Library matchers from coverage.properties (generated from
+// tests/react-native-coverage.config.js). Feeds firebaseModulePaths and
+// react-native-coverage's rn-coverage.gradle instrumentation helper.
+def coverageProps = new Properties()
+def coveragePropsFile = file('coverage.properties')
+if (coveragePropsFile.exists()) {
+  coveragePropsFile.withInputStream { coverageProps.load(it) }
+}
+def coverageLibraryMatchers = (coverageProps.getProperty('coverage.libraryProjectMatchers', 'react-native-firebase')
+  .split(',')
+  .collect { it.trim() }
+  .findAll { !it.isEmpty() })
+rootProject.ext.coverageLibraryProjectMatchers = coverageLibraryMatchers
+
+def testsDir = rootProject.projectDir.parentFile
+def rnCoveragePackageJson = ["node", "--print", "require.resolve('react-native-coverage/package.json')"]
+  .execute(null, testsDir)
+  .text
+  .trim()
+if (!rnCoveragePackageJson) {
+  throw new GradleException(
+    'react-native-coverage/package.json not resolved from tests/. Run yarn at repo root.',
+  )
+}
+apply from: new File(new File(rnCoveragePackageJson).parentFile, 'android/rn-coverage.gradle')
+
 // collect all our modules for reporting
 subprojects.forEach { project ->
-  if (project.name.contains('react-native-firebase')) {
+  if (coverageLibraryMatchers.any { matcher -> project.name.contains(matcher) }) {
     rootProject.ext.firebaseModulePaths << project.projectDir
   }
 }
@@ -56,7 +86,6 @@ subprojects {
   ext {
     compileSdk = rootProject.ext.compileSdkVersion
     minSdk = rootProject.ext.minSdkVersion
-    targetSdk = rootProject.ext.targetSdkVersion
   }
   afterEvaluate { project ->
     if (!project.name.equalsIgnoreCase('app')
@@ -65,34 +94,17 @@ subprojects {
         compileSdkVersion = compileSdk
         defaultConfig {
           minSdkVersion = minSdk
-          targetSdkVersion = targetSdk
+          // Do not overwrite library targetSdk (packages/*/package.json, typically 34).
+          // Forcing the test-app targetSdk 36 makes Robolectric 4.14.1 DefaultSdkPicker
+          // reject package targetSdkVersion=36 > maxSdkVersion=35 — AndroidTest-AD-1.
         }
       }
     }
 
     // Configure testing settings - if set in module build.gradle files they affect library consumers
-    if (project.name.contains('react-native-firebase')
+    if (rootProject.ext.coverageLibraryProjectMatchers.any { matcher -> project.name.contains(matcher) }
       && project.hasProperty('android')) {
-      // Jacoco plugin for JVM unit .exec (AGP enableUnitTestCoverage on libraries yields
-      // exec files without product-class probes — see jacoco#1265). Keep androidTest
-      // coverage for Detox on-device .ec instrumentation.
-      project.pluginManager.apply('jacoco')
-      project.jacoco {
-        toolVersion = '0.8.14'
-      }
-      project.tasks.withType(Test).configureEach { testTask ->
-        testTask.jacoco.includeNoLocationClasses = true
-        testTask.jacoco.excludes = ['jdk.internal.*']
-      }
-
       android {
-        buildTypes.debug {
-          // Detox / on-device coverage.ec needs instrumented library classes in the app.
-          enableAndroidTestCoverage = true
-          // Do not use enableUnitTestCoverage here — empty product probes on library modules.
-          enableUnitTestCoverage = false
-        }
-        jacoco.version = '0.8.14'
         testOptions.unitTests.includeAndroidResources = true
 
         // Make sure our projects are run through basic lint checks.

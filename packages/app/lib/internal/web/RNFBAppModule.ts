@@ -48,22 +48,22 @@ interface InitializeAppResult {
 let jsReady = false;
 let jsListenerCount = 0;
 let queuedEvents: QueuedEvent[] = [];
-let jsListeners: EventListeners = {};
+let jsListeners: EventListeners = Object.create(null);
 
 // For compatibility we have a fake preferences storage,
 // it does not persist across app restarts.
-let fakePreferencesStorage: PreferencesStorage = {};
+let fakePreferencesStorage: PreferencesStorage = Object.create(null);
 
 function eventsGetListenersMap(): ListenersMap {
   return {
     listeners: jsListenerCount,
     queued: queuedEvents.length,
-    events: jsListeners,
+    events: Object.assign(Object.create(null), jsListeners),
   };
 }
 
 function eventsSendEvent(eventName: string, eventBody: any): void {
-  if (!jsReady || !jsListeners.hasOwnProperty(eventName)) {
+  if (!jsReady || !Object.prototype.hasOwnProperty.call(jsListeners, eventName)) {
     const event: QueuedEvent = {
       eventName,
       eventBody,
@@ -174,7 +174,7 @@ export default {
    *
    * @returns The meta data
    */
-  metaGetAll(): Record<string, never> {
+  async metaGetAll(): Promise<Record<string, never>> {
     return {};
   },
 
@@ -184,7 +184,7 @@ export default {
    *
    * @returns The JSON data for the firebase.json file.
    */
-  jsonGetAll(): Record<string, never> {
+  async jsonGetAll(): Promise<Record<string, never>> {
     return {};
   },
 
@@ -206,7 +206,7 @@ export default {
    * @param key - The key of the preference.
    * @param value - The value to set.
    */
-  preferencesSetString(key: string, value: string): void {
+  async preferencesSetString(key: string, value: string): Promise<void> {
     fakePreferencesStorage[key] = value;
   },
 
@@ -216,16 +216,16 @@ export default {
    *
    * @returns The preferences.
    */
-  preferencesGetAll(): PreferencesStorage {
-    return Object.assign({}, fakePreferencesStorage);
+  async preferencesGetAll(): Promise<PreferencesStorage> {
+    return Object.assign(Object.create(null), fakePreferencesStorage);
   },
 
   /**
    * Clears all preferences.
    * Unsupported on web.
    */
-  preferencesClearAll(): void {
-    fakePreferencesStorage = {};
+  async preferencesClearAll(): Promise<void> {
+    fakePreferencesStorage = Object.create(null);
   },
 
   /**
@@ -269,7 +269,7 @@ export default {
    *
    * @returns The listeners for the event.
    */
-  eventsGetListeners(): ListenersMap {
+  async eventsGetListeners(): Promise<ListenersMap> {
     return eventsGetListenersMap();
   },
 
@@ -280,8 +280,9 @@ export default {
    * @param eventBody - The body of the event to send.
    * @returns void
    */
-  eventsPing(eventName: string, eventBody: any): void {
+  async eventsPing(eventName: string, eventBody: any): Promise<any> {
     eventsSendEvent(eventName, eventBody);
+    return eventBody;
   },
 
   /**
@@ -291,7 +292,7 @@ export default {
    */
   eventsAddListener(eventName: string): void {
     jsListenerCount++;
-    if (!jsListeners.hasOwnProperty(eventName)) {
+    if (!Object.prototype.hasOwnProperty.call(jsListeners, eventName)) {
       jsListeners[eventName] = 1;
     } else {
       if (jsListeners[eventName] !== undefined) {
@@ -312,7 +313,7 @@ export default {
    * @param all - Optional. Whether to remove all listeners for the event.
    */
   eventsRemoveListener(eventName: string, all?: boolean): void {
-    if (jsListeners.hasOwnProperty(eventName)) {
+    if (Object.prototype.hasOwnProperty.call(jsListeners, eventName)) {
       const count = jsListeners[eventName];
       if (count !== undefined) {
         if (count <= 1 || all) {
