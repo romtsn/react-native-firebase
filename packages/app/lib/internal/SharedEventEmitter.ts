@@ -15,6 +15,10 @@
  *
  */
 
+// RN macOS 0.78 does not export EventEmitter from the public API; vendor path works on 0.78–0.88.
 import EventEmitter from 'react-native/Libraries/vendor/emitter/EventEmitter';
+import type { ReactNativeFirebaseEventEmitter } from '../types/internal';
 
-export default new EventEmitter();
+const emitter = new EventEmitter() as ReactNativeFirebaseEventEmitter;
+
+export default emitter;
