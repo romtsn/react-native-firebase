@@ -22,6 +22,11 @@
       "When does it make sense to use react-native-firebase instead of firebase-js-sdk?"
     ]
   },
+  "check": {
+    "severityOverrideHosts": {
+      "rnfirebase.io": "error"
+    }
+  },
   "tabs": [
     {
       "id": "root",
@@ -199,7 +204,11 @@
         { "title": "iOS Permissions", "href": "/messaging/ios-permissions" },
         { "title": "Notifications", "href": "/messaging/notifications" },
         { "title": "iOS Notification Images", "href": "/messaging/ios-notification-images" },
-        { "title": "Server Integration", "href": "/messaging/server-integration" }
+        { "title": "Server Integration", "href": "/messaging/server-integration" },
+        {
+          "title": "Migrating to Installation ID",
+          "href": "/messaging/migrating-to-installation-id"
+        }
       ]
     },
     {
