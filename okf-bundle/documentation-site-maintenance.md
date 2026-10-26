@@ -19,6 +19,8 @@ Single source for **user-facing documentation site** maintenance: [docs.page](ht
 | User docs (rnfirebase.io) | `docs.json` + `docs/**` | docs.page |
 | API reference | `typedoc.json` (+ per-package `packages/*/typedoc.json`) | `yarn reference:api` → `reference/`; published at reference.rnfirebase.io |
 
+When Publish deploys the API reference (main-only), see [maintainer publish](monorepo-tooling/maintainer-publish.md).
+
 ## Legacy reference redirects
 
 Pre–docs.page API pages lived under `/reference/...` on the old Gatsby site (`website/public/reference/**`). `docs.json` **`redirects`** maps those paths to the current TypeDoc URLs so bookmarks and external links keep working.
@@ -66,7 +68,7 @@ Removed packages (e.g. Dynamic Links) have no TypeDoc module — fall back to `m
 - [ ] `yarn reference:api` succeeds
 - [ ] All `docs.json` redirect targets verified (200)
 - [ ] New legacy paths identified and redirected or explicitly deferred with rationale
-- [ ] Markdown/spellcheck/link check when `docs/**` changed — [validation checklist § lint and formatting](testing/validation-checklist.md#lint-and-formatting) (`yarn lint:markdown` / `yarn lint:spellcheck` / `yarn lint:docs-links` glob `docs/**` only; OKF-only diffs do not run those)
+- [ ] Markdown/spellcheck/link check when `docs/**` changed — [validation checklist § lint and formatting](testing/validation-checklist.md#lint-and-formatting) (`yarn lint:markdown` / `yarn lint:spellcheck` / `yarn lint:docs-links` glob `docs/**` only; OKF-only diffs do not run those). **Missing `lint:docs-links` evidence when `docs/**` was touched is serious** ([change authoring § work types](testing/change-authoring-workflow.md#work-types))
 
 **Validation commands:** [validation checklist § API reference](testing/validation-checklist.md#api-reference-and-type-parity), [§ lint and formatting](testing/validation-checklist.md#lint-and-formatting).
 

@@ -2777,7 +2777,7 @@ PODS:
     - React-Core
   - RNDeviceInfo (15.0.2):
     - React-Core
-  - RNFBAnalytics (26.4.0):
+  - RNFBAnalytics (27.1.0):
     - boost
     - DoubleConversion
     - fast_float
@@ -2807,7 +2807,7 @@ PODS:
     - RNFBApp
     - SocketRocket
     - Yoga
-  - RNFBApp (26.4.0):
+  - RNFBApp (27.1.0):
     - boost
     - DoubleConversion
     - fast_float
@@ -2836,37 +2836,7 @@ PODS:
     - ReactCommon/turbomodule/core
     - SocketRocket
     - Yoga
-  - RNFBAppCheck (26.4.0):
-    - boost
-    - DoubleConversion
-    - fast_float
-    - fmt
-    - glog
-    - hermes-engine
-    - RCT-Folly
-    - RCT-Folly/Fabric
-    - RCTRequired
-    - RCTTypeSafety
-    - React-bridging
-    - React-Core
-    - React-cxxstableapi
-    - React-debug
-    - React-Fabric
-    - React-featureflags
-    - React-graphics
-    - React-ImageManager
-    - React-jsi
-    - React-NativeModulesApple
-    - React-RCTFabric
-    - React-renderercss
-    - React-rendererdebug
-    - React-utils
-    - ReactCodegen
-    - ReactCommon/turbomodule/core
-    - RNFBApp
-    - SocketRocket
-    - Yoga
-  - RNFBAppDistribution (26.4.0):
+  - RNFBAppCheck (27.1.0):
     - boost
     - DoubleConversion
     - fast_float
@@ -2896,7 +2866,7 @@ PODS:
     - RNFBApp
     - SocketRocket
     - Yoga
-  - RNFBAuth (26.4.0):
+  - RNFBAppDistribution (27.1.0):
     - boost
     - DoubleConversion
     - fast_float
@@ -2926,7 +2896,7 @@ PODS:
     - RNFBApp
     - SocketRocket
     - Yoga
-  - RNFBCrashlytics (26.4.0):
+  - RNFBAuth (27.1.0):
     - boost
     - DoubleConversion
     - fast_float
@@ -2956,7 +2926,7 @@ PODS:
     - RNFBApp
     - SocketRocket
     - Yoga
-  - RNFBDatabase (26.4.0):
+  - RNFBCrashlytics (27.1.0):
     - boost
     - DoubleConversion
     - fast_float
@@ -2986,7 +2956,7 @@ PODS:
     - RNFBApp
     - SocketRocket
     - Yoga
-  - RNFBFirestore (26.4.0):
+  - RNFBDatabase (27.1.0):
     - boost
     - DoubleConversion
     - fast_float
@@ -3016,7 +2986,7 @@ PODS:
     - RNFBApp
     - SocketRocket
     - Yoga
-  - RNFBFunctions (26.4.0):
+  - RNFBFirestore (27.1.0):
     - boost
     - DoubleConversion
     - fast_float
@@ -3046,7 +3016,7 @@ PODS:
     - RNFBApp
     - SocketRocket
     - Yoga
-  - RNFBInAppMessaging (26.4.0):
+  - RNFBFunctions (27.1.0):
     - boost
     - DoubleConversion
     - fast_float
@@ -3076,7 +3046,7 @@ PODS:
     - RNFBApp
     - SocketRocket
     - Yoga
-  - RNFBInstallations (26.4.0):
+  - RNFBInAppMessaging (27.1.0):
     - boost
     - DoubleConversion
     - fast_float
@@ -3106,7 +3076,7 @@ PODS:
     - RNFBApp
     - SocketRocket
     - Yoga
-  - RNFBMessaging (26.4.0):
+  - RNFBInstallations (27.1.0):
     - boost
     - DoubleConversion
     - fast_float
@@ -3136,7 +3106,7 @@ PODS:
     - RNFBApp
     - SocketRocket
     - Yoga
-  - RNFBML (26.4.0):
+  - RNFBMessaging (27.1.0):
     - boost
     - DoubleConversion
     - fast_float
@@ -3166,7 +3136,7 @@ PODS:
     - RNFBApp
     - SocketRocket
     - Yoga
-  - RNFBPerf (26.4.0):
+  - RNFBPerf (27.1.0):
     - boost
     - DoubleConversion
     - fast_float
@@ -3196,7 +3166,7 @@ PODS:
     - RNFBApp
     - SocketRocket
     - Yoga
-  - RNFBRemoteConfig (26.4.0):
+  - RNFBRemoteConfig (27.1.0):
     - boost
     - DoubleConversion
     - fast_float
@@ -3226,7 +3196,7 @@ PODS:
     - RNFBApp
     - SocketRocket
     - Yoga
-  - RNFBStorage (26.4.0):
+  - RNFBStorage (27.1.0):
     - boost
     - DoubleConversion
     - fast_float
@@ -3359,7 +3329,6 @@ DEPENDENCIES:
   - "RNFBInAppMessaging (from `../node_modules/@react-native-firebase/in-app-messaging`)"
   - "RNFBInstallations (from `../node_modules/@react-native-firebase/installations`)"
   - "RNFBMessaging (from `../node_modules/@react-native-firebase/messaging`)"
-  - "RNFBML (from `../node_modules/@react-native-firebase/ml`)"
   - "RNFBPerf (from `../node_modules/@react-native-firebase/perf`)"
   - "RNFBRemoteConfig (from `../node_modules/@react-native-firebase/remote-config`)"
   - "RNFBStorage (from `../node_modules/@react-native-firebase/storage`)"
@@ -3568,8 +3537,6 @@ EXTERNAL SOURCES:
     :path: "../node_modules/@react-native-firebase/installations"
   RNFBMessaging:
     :path: "../node_modules/@react-native-firebase/messaging"
-  RNFBML:
-    :path: "../node_modules/@react-native-firebase/ml"
   RNFBPerf:
     :path: "../node_modules/@react-native-firebase/perf"
   RNFBRemoteConfig:
@@ -3588,7 +3555,7 @@ SPEC CHECKSUMS:
   FBLazyVector: ea9b230e7e868bf13b5cea5b4b19274fb747e7cc
   fmt: 530618a01105dae0fa3a2f27c81ae11fa8f67eac
   glog: e56ede4028c4b7418e6b1195a36b1656bb35e225
-  hermes-engine: a1158910bb7e300b9e3d2f1e2d433f817ec1a4b5
+  hermes-engine: 5e92166e4e71a1725dcc9b078bef44c98c536779
   RCT-Folly: 36c4f904fb6cd0219dcb76b94e9502d2a72fab0b
   RCTDeprecation: 1d1a94a247818610796b6ecb790d50272b92074d
   RCTRequired: 4917cf98f463f9ad12309b27e78e37b8ad2a3d58
@@ -3666,25 +3633,24 @@ SPEC CHECKSUMS:
   ReactCommon: 0ef624aa6a590b7089797decf8ab6e8d0c01336f
   RNAppleAuthentication: a89c9804592b38ed4ab11f0aee68d05ba12ad432
   RNDeviceInfo: 4c852998208b60dc192ae3529e5867817719ad1e
-  RNFBAnalytics: 439ef8fd591653d90c60ade70c6fbb928a6a68c1
-  RNFBApp: a79a8f65bcc6126d53fe9423879a50bb271e37d8
-  RNFBAppCheck: f38f0433bda53fefd2c846f54dd4ba6107dadbba
-  RNFBAppDistribution: 238b6f7b81538b47276ef8e3348f404e7f37ee11
-  RNFBAuth: 26009b40ed266398797248ac56b77591c58a1e52
-  RNFBCrashlytics: e24b856943396114d1fa46aa6512ca2fe95ae96d
-  RNFBDatabase: deeeee7ef2efaa3e980e8b312487bf674d69481a
-  RNFBFirestore: 9aee39f71b33a7639de421372a7469de624b2d09
-  RNFBFunctions: 68503edab6623c9d8f7d44b5ea53757e447ceffd
-  RNFBInAppMessaging: 6d89a102615a3dcce1f0a61cda386471f2604f98
-  RNFBInstallations: cee2e5030edbefe8077699d0f8a6e5b3b056cd15
-  RNFBMessaging: 040d846facb2cb7def9955b20b03380d269725f9
-  RNFBML: 0fbf5a3625154af91b96cccaed4edc82ddc6df36
-  RNFBPerf: 0dd6ba75626b7fcb79aad15f27e9f2a5ef7e9f01
-  RNFBRemoteConfig: ca05de71934fc37bdd2670c7e595bb6bcb356fd1
-  RNFBStorage: 74cd82ac2c7d08c2fb4d781fcaf67174b8a0089f
+  RNFBAnalytics: d52db38a97ab1457b6c0229670c9eb47f3b25ae8
+  RNFBApp: 4632e45de08360b827fb2a920caa275969f7f8a9
+  RNFBAppCheck: 815ef781bc9475cecae439c4bc96378dc8509638
+  RNFBAppDistribution: c56a898c9c6dbcec84a41267bb78d694f027873f
+  RNFBAuth: 726b3423d93b46faf735c08b295c96e97eb43020
+  RNFBCrashlytics: a093caf329cab14c3931bf7c05b8633b5590ed7e
+  RNFBDatabase: 9d6a7702c5c453755e378c7fc9c760cca5fb1d52
+  RNFBFirestore: a7c21c0a33fc50d4a8f49c027c3856a2850329c0
+  RNFBFunctions: a9670c25bf83d1b0e67604b5d1308bfc896e48d1
+  RNFBInAppMessaging: 9abda545509bd985bcf8d53bdd76d2d706671a5e
+  RNFBInstallations: 8b65ac3b918638c6644aa4c252e36d9a20002585
+  RNFBMessaging: b7b61c70886c91ea6d2fb9c9ed61b4c5e790c1ba
+  RNFBPerf: 50449c6fd0ceb9ee81b011ec3445806d6a6eb7d7
+  RNFBRemoteConfig: 710919bd85a703b34aee59809090cff8ac75325e
+  RNFBStorage: b7da5c9e00996dce0360dfde3f38f2ae32efea04
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
   Yoga: f6e0289dfdcb72d0bb7553be60e7cdcbddb2c7d8
 
-PODFILE CHECKSUM: 390110926604d1888d80ae8c29818474bf21a46c
+PODFILE CHECKSUM: d4305f301b3ebbb6e95bdc452a187f3f79678983
 
 COCOAPODS: 1.17.0

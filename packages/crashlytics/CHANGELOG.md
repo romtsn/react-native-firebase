@@ -3,6 +3,29 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [27.1.0](https://github.com/invertase/react-native-firebase/compare/v27.0.0...v27.1.0) (2026-10-23)
+
+### Bug Fixes
+
+- **crashlytics, ios:** time out SPM upload-symbols so a stalled upload cannot hang the build ([1cdb7de](https://github.com/invertase/react-native-firebase/commit/1cdb7de24ef5ca12a24cf599cce11d3d8797cbb2))
+- **crashlytics:** reach Android Crashlytics internals by reflection only ([c3f15e3](https://github.com/invertase/react-native-firebase/commit/c3f15e37b1f53e0a81469183e896003ea6e80141))
+- **crashlytics:** save JS fatal report before exiting when chaining is disabled ([cfd00b6](https://github.com/invertase/react-native-firebase/commit/cfd00b65754186aad0f765f61a5db3f19e84b716))
+
+## [27.0.0](https://github.com/invertase/react-native-firebase/compare/v26.4.0...v27.0.0) (2026-10-19)
+
+### ⚠ BREAKING CHANGES
+
+- **app, sdk:** bump Firebase Android 35, Apple 13, and JS 13
+
+### Features
+
+- **app, sdk:** bump Firebase Android 35, Apple 13, and JS 13 ([0ca03d1](https://github.com/invertase/react-native-firebase/commit/0ca03d11b0c271fb37cfbee8a0c3074a21969f0b))
+- **test-expo:** add Expo Router example with a route per package ([#9313](https://github.com/invertase/react-native-firebase/issues/9313)) ([50a946a](https://github.com/invertase/react-native-firebase/commit/50a946ab4f6c11670890940b55e8bb71f6332dcf))
+
+### Bug Fixes
+
+- **crashlytics, ios:** resolve target-folder GoogleService-Info.plist for SPM dSYM upload ([a2b7e57](https://github.com/invertase/react-native-firebase/commit/a2b7e5789b6df07d3aa2729f734582de6a5feb92)), closes [#9304](https://github.com/invertase/react-native-firebase/issues/9304)
+
 ## [26.4.0](https://github.com/invertase/react-native-firebase/compare/v26.3.3...v26.4.0) (2026-09-05)
 
 **Note:** Version bump only for package @react-native-firebase/crashlytics
