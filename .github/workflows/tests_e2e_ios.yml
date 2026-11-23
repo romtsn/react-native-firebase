@@ -46,6 +46,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # One placement read per matrix cell. The route job waits for matrix_prep
+  # and records a hold for each buildmode and iteration.
+  route-ios:
+    needs: matrix_prep
+    uses: ./.github/workflows/mellifera-route-matrix.yml
+    secrets: inherit
+    with:
+      class: macos
+      default-runs-on: xcode-27
+      matrix: ${{ needs.matrix_prep.outputs.matrix }}
+      key-fields: buildmode,iteration
   # We want to generate our matrix dynamically
   # Initial job generates the matrix as a JSON, and following job will use deserialize and use the result
   matrix_prep:
@@ -102,8 +113,8 @@ jobs:
   # it will run unit tests on whatever OS combinations are desired
   ios:
     name: iOS (${{ matrix.buildmode }}, ${{ matrix.iteration }})
-    runs-on: xcode-27
-    needs: matrix_prep
+    runs-on: ${{ fromJSON(needs.route-ios.outputs.choices)[format('{0}-{1}', matrix.buildmode, matrix.iteration)] || fromJSON(needs.route-ios.outputs.fallback) }}
+    needs: [matrix_prep, route-ios]
     # TODO matrix across APIs, at least 11 and 15 (lowest to highest)
     timeout-minutes: 107
     env:
@@ -149,7 +160,7 @@ jobs:
 
       - name: Configure JDK
         # https://github.com/actions/setup-java/releases
-        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -200,7 +211,7 @@ jobs:
 
       # Detox is compiled during yarn install, using Xcode, set up cache first
       # https://github.com/hendrikmuhs/ccache-action/releases
-      - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+      - uses: hendrikmuhs/ccache-action@e91f31892a1d1b8c44424b1a94c0b7f52d337168 # v1.2.26
         name: Xcode Compile Cache
         with:
           # Sticky content-hash key (append-timestamp: false). SPM-only matrix (no cocoapods leg); debug/release stay distinct.
@@ -222,7 +233,7 @@ jobs:
 
       - name: Setup Ruby
         # https://github.com/ruby/setup-ruby/releases
-        uses: ruby/setup-ruby@de492cf36cbab201753d720ce4f4e336cd688c94 # v1.336.0
+        uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
         with:
           ruby-version: 3
 
@@ -366,7 +377,7 @@ jobs:
           # Pinned so the Metro log upload below finds it whatever TMPDIR the runner sets.
           RNFB_METRO_LOG: /tmp/rnfb-metro-8081.log
         run: |
-          nohup yarn tests:packager:jet-ci > metro.log 2>&1 &
+          nohup yarn tests:packager:jet-ci --client-logs > metro.log 2>&1 &
           printf 'Waiting for packager to come online'
           until curl --output /dev/null --silent --head --fail http://localhost:8081/status; do
             printf '.'
@@ -613,9 +624,16 @@ jobs:
   # identity/provisioning profile needed) and verifies the resulting app
   # bundle is actually loadable. See .github/workflows/scripts/verify-ios-release-archive.sh
   # and okf-bundle/ios-spm-native-imports.md "Runtime framework embedding".
+  route-ios-archive:
+    uses: ./.github/workflows/mellifera-route.yml
+    secrets: inherit
+    with:
+      class: macos
+      default-runs-on: xcode-27
   ios-release-archive:
     name: iOS Release Archive
-    runs-on: xcode-27
+    runs-on: ${{ fromJSON(needs.route-ios-archive.outputs.runs-on) }}
+    needs: route-ios-archive
     timeout-minutes: 45
     env:
       CCACHE_SLOPPINESS: clang_index_store,file_stat_matches,include_file_ctime,include_file_mtime,ivfsoverlay,pch_defines,modules,system_headers,time_macros
@@ -654,7 +672,7 @@ jobs:
         id: xcode_cache_key
         run: echo "key=$(bash .github/workflows/scripts/compute-xcode-ccache-key.sh e2e-ios)" >> "$GITHUB_OUTPUT"
 
-      - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+      - uses: hendrikmuhs/ccache-action@e91f31892a1d1b8c44424b1a94c0b7f52d337168 # v1.2.26
         name: Xcode Compile Cache
         with:
           # Sticky content-hash key (append-timestamp: false). SPM-only archive job.
@@ -665,7 +683,7 @@ jobs:
           max-size: 1500M
 
       - name: Setup Ruby
-        uses: ruby/setup-ruby@de492cf36cbab201753d720ce4f4e336cd688c94 # v1.336.0
+        uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
         with:
           ruby-version: 3
 

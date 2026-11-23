@@ -21,6 +21,8 @@ on:
       - '.github/workflows/test_expo_ios_link.yml'
       - '.github/workflows/scripts/test-expo-ios-link.sh'
       - '.github/workflows/scripts/test-expo-ios-launch-smoke.sh'
+      - '.github/workflows/scripts/check-duplicate-objc-classes.sh'
+      - '.github/workflows/scripts/lib/derived-data-path.sh'
       - '.github/workflows/scripts/configure-apple-ci.sh'
   push:
     branches:
@@ -40,6 +42,8 @@ on:
       - '.github/workflows/test_expo_ios_link.yml'
       - '.github/workflows/scripts/test-expo-ios-link.sh'
       - '.github/workflows/scripts/test-expo-ios-launch-smoke.sh'
+      - '.github/workflows/scripts/check-duplicate-objc-classes.sh'
+      - '.github/workflows/scripts/lib/derived-data-path.sh'
       - '.github/workflows/scripts/configure-apple-ci.sh'
 
 permissions:
@@ -51,9 +55,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  route-macos:
+    uses: ./.github/workflows/mellifera-route.yml
+    secrets: inherit
+    with:
+      class: macos
+      default-runs-on: xcode-27
   test-expo-ios-link:
     name: test-expo iOS link + launch smoke
-    runs-on: xcode-27
+    runs-on: ${{ fromJSON(needs.route-macos.outputs.runs-on) }}
+    needs: route-macos
     timeout-minutes: 90
     env:
       XCODE_VERSION: '27.0'
@@ -90,7 +101,7 @@ jobs:
 
       # Sticky content-hash key (append-timestamp: false). Distinct from e2e (`expo-link` app id).
       # https://github.com/hendrikmuhs/ccache-action/releases
-      - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+      - uses: hendrikmuhs/ccache-action@e91f31892a1d1b8c44424b1a94c0b7f52d337168 # v1.2.26
         name: Xcode Compile Cache
         with:
           key: ${{ runner.os }}-expo-link-ios-v4-xcode27-${{ steps.xcode_cache_key.outputs.key }}
@@ -130,7 +141,6 @@ jobs:
         with:
           name: test-expo-ios-launch-smoke-logs
           path: |
-            /tmp/test-expo-launch-smoke.log
-            /tmp/test-expo-launch-smoke-metro.log
-            /tmp/test-expo-launch-smoke-xcodebuild.log
+            /tmp/test-expo-launch-smoke.png
+            /tmp/test-expo-launch-smoke-*.log
           if-no-files-found: ignore

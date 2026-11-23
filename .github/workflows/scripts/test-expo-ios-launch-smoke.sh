@@ -4,10 +4,16 @@
 # simctl-only — no Simulator.app / Device Hub.
 set -euo pipefail
 
-cd "$(dirname "$0")/../../.."
+REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+# shellcheck source=lib/derived-data-path.sh
+source "${REPO_ROOT}/.github/workflows/scripts/lib/derived-data-path.sh"
 # shellcheck source=../../../scripts/e2e/lib/e2e-run-record.sh
-source "$(pwd)/scripts/e2e/lib/e2e-run-record.sh"
-cd test-expo
+source "${REPO_ROOT}/scripts/e2e/lib/e2e-run-record.sh"
+REPO_TAG="$(repo_path_tag "$REPO_ROOT")"
+TMP_ROOT="${TMPDIR:-/tmp}"
+TMP_ROOT="${TMP_ROOT%/}"
+TMP_ROOT="${TMP_ROOT:-/tmp}"
+cd "${REPO_ROOT}/test-expo"
 
 log() {
   echo "[test-expo-ios-launch-smoke] $*"
@@ -49,12 +55,12 @@ XCODE_SCHEME="${RNFB_TEST_EXPO_XCODE_SCHEME:-testexpo}"
 SIM_NAME="${RNFB_TEST_EXPO_IOS27_DEVICE:-iPhone 18 Pro}"
 SIM_RUNTIME="${RNFB_TEST_EXPO_IOS27_RUNTIME:-iOS 27.0}"
 METRO_PORT="${RNFB_TEST_EXPO_METRO_PORT:-8081}"
-TMP_ROOT="${TMPDIR:-/tmp}"
-TMP_ROOT="${TMP_ROOT%/}"
-TMP_ROOT="${TMP_ROOT:-/tmp}"
-METRO_LOG="${RNFB_TEST_EXPO_METRO_LOG:-${TMP_ROOT}/test-expo-launch-smoke-metro.log}"
-APP_LOG="${RNFB_TEST_EXPO_LAUNCH_LOG:-${TMP_ROOT}/test-expo-launch-smoke.log}"
-XCODEBUILD_LOG="${RNFB_TEST_EXPO_LAUNCH_XCODEBUILD_LOG:-${TMP_ROOT}/test-expo-launch-smoke-xcodebuild.log}"
+METRO_LOG="${RNFB_TEST_EXPO_METRO_LOG:-${TMP_ROOT}/test-expo-launch-smoke-${REPO_TAG}-metro.log}"
+APP_LOG="${RNFB_TEST_EXPO_LAUNCH_LOG:-${TMP_ROOT}/test-expo-launch-smoke-${REPO_TAG}.log}"
+# Same stem as APP_LOG so a TMP/env override and the CI artifact path stay aligned.
+SCREENSHOT="${APP_LOG%.log}.png"
+XCODEBUILD_LOG="${RNFB_TEST_EXPO_LAUNCH_XCODEBUILD_LOG:-${TMP_ROOT}/test-expo-launch-smoke-${REPO_TAG}-xcodebuild.log}"
+SPM_PACKAGES="${RNFB_TEST_EXPO_SPM_PACKAGES:-${TMP_ROOT}/test-expo-spm-packages-${REPO_TAG}}"
 # Cap for key-window + sceneOfRecord poll after launch (replaces fixed sleep 10).
 KEY_WINDOW_WAIT_SEC="${RNFB_TEST_EXPO_KEY_WINDOW_WAIT_SEC:-60}"
 
@@ -136,7 +142,7 @@ HOST_ARCH="$(uname -m)"
 xcrun simctl boot "$UDID" 2>/dev/null || true
 xcrun simctl bootstatus "$UDID" -b >/dev/null
 
-log "xcodebuild Debug (simulator ${UDID}, log: ${XCODEBUILD_LOG})"
+log "xcodebuild Debug (simulator ${UDID}, SPM packages=${SPM_PACKAGES}, log: ${XCODEBUILD_LOG})"
 # Cap compile time: prior CI run sat silent after ~18m of xcodebuild env spam until the
 # 60m job timeout. Prefer GNU timeout when present; otherwise perl alarm.
 XCODEBUILD_TIMEOUT_SEC="${RNFB_TEST_EXPO_XCODEBUILD_TIMEOUT_SEC:-2400}"
@@ -150,6 +156,7 @@ if command -v gtimeout >/dev/null 2>&1; then
     -scheme "$XCODE_SCHEME" \
     -configuration Debug \
     -destination "id=${UDID}" \
+    -clonedSourcePackagesDirPath "$SPM_PACKAGES" \
     CODE_SIGNING_ALLOWED=NO \
     CODE_SIGNING_REQUIRED=NO \
     CODE_SIGN_IDENTITY="" \
@@ -164,6 +171,7 @@ elif command -v timeout >/dev/null 2>&1; then
     -scheme "$XCODE_SCHEME" \
     -configuration Debug \
     -destination "id=${UDID}" \
+    -clonedSourcePackagesDirPath "$SPM_PACKAGES" \
     CODE_SIGNING_ALLOWED=NO \
     CODE_SIGNING_REQUIRED=NO \
     CODE_SIGN_IDENTITY="" \
@@ -179,6 +187,7 @@ else
     -scheme "$XCODE_SCHEME" \
     -configuration Debug \
     -destination "id=${UDID}" \
+    -clonedSourcePackagesDirPath "$SPM_PACKAGES" \
     CODE_SIGNING_ALLOWED=NO \
     CODE_SIGNING_REQUIRED=NO \
     CODE_SIGN_IDENTITY="" \
@@ -211,6 +220,7 @@ settings_out="$(
     -scheme "$XCODE_SCHEME" \
     -configuration Debug \
     -destination "id=${UDID}" \
+    -clonedSourcePackagesDirPath "$SPM_PACKAGES" \
     -showBuildSettings 2>"$settings_err"
 )"
 settings_status=$?
@@ -250,7 +260,8 @@ fi
 xcrun simctl install "$UDID" "$APP"
 
 : >"$APP_LOG"
-xcrun simctl spawn "$UDID" log stream --level default --style compact \
+# React warning-level os_log (com.facebook.react.log / javascript) is OS_LOG_TYPE_INFO.
+xcrun simctl spawn "$UDID" log stream --level info --style compact \
   --predicate 'process == "testexpo" OR subsystem == "com.apple.runtime-issues" OR eventMessage CONTAINS[c] "EvaluateRuntimeIssueForNoSceneLifecycleAdoption"' \
   >>"$APP_LOG" 2>&1 &
 LOG_PID=$!
@@ -320,6 +331,12 @@ if [[ -n "$scene_ips" ]]; then
   fail "scene lifecycle runtime issue detected — see ${APP_LOG}"
 fi
 if ! grep -Fq 'Window did become application key' "$APP_LOG"; then
+  # Before the EXIT trap terminates the app. A failed screenshot must not replace this error.
+  if ! xcrun simctl io "$UDID" screenshot "$SCREENSHOT"; then
+    log "WARN: screenshot failed (${SCREENSHOT})"
+  else
+    log "screenshot ${SCREENSHOT}"
+  fi
   dump_failure_logs
   fail "app window never became key within ${KEY_WINDOW_WAIT_SEC}s — see ${APP_LOG}"
 fi
